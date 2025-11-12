@@ -9,31 +9,24 @@
 #include <mysql/mysql.h>
 #include "tbl_trade_order.h"
 
-#ifndef TICKER_LEN
-#define TICKER_LEN 8
-#endif
-#ifndef TIMESTAMP_LEN
-// YYYY-MM-DD HH:MM:SS
-#define TIMESTAMP_LEN 20
-#endif
-
 void * parse_tbl_trade_order(MYSQL_RES *result) {
 	char *end;
 	MYSQL_ROW row;
-	struct tbl_trade_order *head, *current; 
-	unsigned long tmpul;
+	ST_TBL_TRADE_ORDER *head, *current; 
+	unsigned long tmp_ul;
 	
 	errno = 0;
-	head = malloc(sizeof(TBL_TRADE_ORDER));
+	head = malloc(sizeof(ST_TBL_TRADE_ORDER));
 	head->next = NULL;
 	current = head;
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		// Build new node
-		struct tbl_trade_order *tto = malloc(sizeof(TBL_TRADE_ORDER));
+		struct tbl_trade_order *tto = malloc(sizeof(ST_TBL_TRADE_ORDER));
 		tto->id      = strtoul(row[0], &end, 10);
-		tto->user_id = strtoi(row[1], &end, 10);
+		// TODO library function for bounds checking conversion.
+		tto->user_id = (unsigned int) strtol(row[1], &end, 10);
 		strncpy(tto->ticker, row[2], TICKER_LEN);
-		tto-ticker[TICKER_LEN - 1] = '\0';
+		tto->ticker[TICKER_LEN - 1] = '\0';
 		tto->side    = *row[3];
 		tto->status  = *row[4];
 		tto->type    = *row[5];
@@ -53,6 +46,7 @@ void * parse_tbl_trade_order(MYSQL_RES *result) {
 		current->next = tto;
 		current = tto;
 	}
-	return (*void) head;
+
+	return (void*) head;
 }
 

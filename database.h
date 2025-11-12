@@ -2,18 +2,24 @@
 #define _DATABASE_H_
 
 #include <mysql/mysql.h>
-#include "tbl_trade_order.h"
-#include "tbl_user_currency.h"
 
-// Global MySQL connection
-MYSQL *mysql_conn = NULL;
+#ifndef TICKER_LEN
+#define TICKER_LEN 8
+#endif
+#ifndef TIMESTAMP_LEN
+// YYYY-MM-DD HH:MM:SS
+#define TIMESTAMP_LEN 20
+#endif
+
+#include "tbl_user_currency.h"
+#include "tbl_trade_order.h"
 
 typedef enum {
 	TBL_TRADE_ORDER = 0,
 	TBL_USER_CURRENCY
 } DB_TBL_TYPE;
 
-void* db_fetch_data(const char *query, DB_TBL_TYPE tbl_type) {
+void* db_fetch_data(const char *query, DB_TBL_TYPE tbl_type);
 int db_execute_query(const char *query);
 int db_init();
 void db_close();
