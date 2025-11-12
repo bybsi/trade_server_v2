@@ -7,7 +7,7 @@
 typedef struct tbl_trade_order {
 	unsigned long id;
 	unsigned int user_id;
-	char ticker[8];
+	char ticker[TICKER_LEN];
 	// [B]uy, [S]ell
 	char side;
 	// [F]illed, [O]pen, [X]anceled
