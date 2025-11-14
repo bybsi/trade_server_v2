@@ -14,18 +14,11 @@
 // Global MySQL connection
 MYSQL *mysql_conn = NULL;
 
-int db_init() {
+unsigned short read_mysql_connect_file(char vars[][32]) {
 	FILE *fh;
 	char buffer[32];
 	unsigned short line_num, len;
-	char *mysql_connect_vars[4];
-
-	mysql_conn = mysql_init(NULL);
-	if (mysql_conn == NULL) {
-		fprintf(stderr, "Failed to initialize MySQL: %s\n", mysql_error(mysql_conn));
-		return 0;
-	}
-
+	
 	if (!(fh = fopen(".dbconnect", "r"))) {
 		fprintf(stderr, "Failed to open database connection file.\n");
 		return 0;
@@ -34,12 +27,34 @@ int db_init() {
 	line_num = 0;
 	while (line_num < 4 && fgets(buffer, sizeof(buffer), fh) != NULL)  {
 		len = strlen(buffer);
-		mysql_connect_vars[line_num] = strdup(buffer);
+		strncpy(vars[line_num], buffer, 32);
 		if (buffer[len - 1] == '\n')
-			mysql_connect_vars[line_num][len - 1] = '\0';
+			vars[line_num][len - 1] = '\0';
 		line_num++;
 	}
 	fclose(fh);
+
+	if (line_num != 4) {
+		fprintf(stderr, "Invalid number of lines in database connection file.\n");
+		return 0;
+	}
+
+	return 1;
+}
+
+int db_init() {
+	char mysql_connect_vars[4][32];
+
+	mysql_conn = mysql_init(NULL);
+	if (mysql_conn == NULL) {
+		fprintf(stderr, "Failed to initialize MySQL: %s\n", mysql_error(mysql_conn));
+		return 0;
+	}
+
+	if (!read_mysql_connect_file(mysql_connect_vars)) {
+		fprintf(stderr, "Could not read database connection file.\n");
+		return 0;
+	}
 
 	if (mysql_real_connect(mysql_conn, DB_CONNECT_STR(mysql_connect_vars), 0, NULL, 0) == NULL) {
 		fprintf(stderr, "Failed to connect to MySQL: %s\n", mysql_error(mysql_conn));
