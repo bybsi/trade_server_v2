@@ -10,7 +10,7 @@
 // 	Also use environment variables for this with getenv().
 #define DB_HOST "localhost"
 #define DB_USER "bs"
-#define DB_PASS "oldBaldy26!"
+#define DB_PASS ""
 #define DB_NAME "thingbyb"
 
 // Global MySQL connection
