@@ -19,7 +19,12 @@ typedef enum {
 	TBL_USER_CURRENCY
 } DB_TBL_TYPE;
 
-void* db_fetch_data(const char *query, DB_TBL_TYPE tbl_type);
+static char *database_query_str[] = {
+	"SELECT * FROM tbl_trade_orders",
+	"SELECT * FROM tbl_user_currency"
+};
+
+void* db_fetch_data(DB_TBL_TYPE tbl_type);
 int db_execute_query(const char *query);
 int db_init();
 void db_close();

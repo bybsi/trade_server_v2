@@ -10,7 +10,7 @@
 // 	Also use environment variables for this with getenv().
 #define DB_HOST "localhost"
 #define DB_USER "bs"
-#define DB_PASS ""
+#define DB_PASS "oldBaldy26!"
 #define DB_NAME "thingbyb"
 
 // Global MySQL connection
@@ -62,7 +62,7 @@ tbl_mapper tbl_map[] = {
 };
 // Returns a linked list of SQL records.
 // Client must cast the returned node to the appropriate type.
-void* db_fetch_data(const char *query, DB_TBL_TYPE tbl_type) {
+void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 	void *data;
 	MYSQL_RES *result;
 
@@ -70,7 +70,7 @@ void* db_fetch_data(const char *query, DB_TBL_TYPE tbl_type) {
 		return NULL;
 
 //	const char *query = "SELECT data FROM events ORDER BY timestamp DESC LIMIT 1";
-	if (mysql_query(mysql_conn, query) != 0) {
+	if (mysql_query(mysql_conn, database_query_str[tbl_type]) != 0) {
 		fprintf(stderr, "Query failed: %s\n", mysql_error(mysql_conn));
 		return NULL;
 	}

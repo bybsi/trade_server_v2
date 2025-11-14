@@ -27,17 +27,17 @@ void * parse_tbl_trade_order(MYSQL_RES *result) {
 		tto->user_id = (unsigned int) strtol(row[1], &end, 10);
 		strncpy(tto->ticker, row[2], TICKER_LEN);
 		tto->ticker[TICKER_LEN - 1] = '\0';
-		tto->side    = *row[3];
-		tto->status  = *row[4];
-		tto->type    = *row[5];
+		tto->side    = row[3] ? *row[3] : '\0';
+		tto->status  = row[4] ? *row[4] : '\0';
+		tto->type    = row[5] ? *row[5] : '\0';
 		tmp_ul       = strtoul(row[6], &end, 10);
 		if (tmp_ul <= (unsigned long)UINT_MAX)
 			tto->amount = (unsigned int)tmp_ul;
 		else
 			tto->amount = 0;
 		tto->price   = strtoull(row[7], &end, 10);
-		strncpy(tto->created_at, row[8], TIMESTAMP_LEN);
-		strncpy(tto->filled_at, row[9], TIMESTAMP_LEN);
+		strncpy(tto->created_at, row[8] ? row[8] : "", TIMESTAMP_LEN);
+		strncpy(tto->filled_at, row[9] ? row[9] : "", TIMESTAMP_LEN);
 		tto->created_at[TIMESTAMP_LEN - 1] = '\0';
 		tto->filled_at[TIMESTAMP_LEN - 1] = '\0';
 		tto->next = NULL;
