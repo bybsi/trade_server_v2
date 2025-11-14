@@ -8,22 +8,40 @@
 
 // TODO Decrypt PW like in the Python version.
 // 	Also use environment variables for this with getenv().
-#define DB_HOST "localhost"
-#define DB_USER "bs"
-#define DB_PASS ""
-#define DB_NAME "thingbyb"
+//  - currently plaintext in .dbconnect file
+#define DB_CONNECT_STR(var) var[0], var[1], var[2], var[3]
 
 // Global MySQL connection
 MYSQL *mysql_conn = NULL;
 
 int db_init() {
+	FILE *fh;
+	char buffer[32];
+	unsigned short line_num, len;
+	char *mysql_connect_vars[4];
+
 	mysql_conn = mysql_init(NULL);
 	if (mysql_conn == NULL) {
 		fprintf(stderr, "Failed to initialize MySQL: %s\n", mysql_error(mysql_conn));
 		return 0;
 	}
 
-	if (mysql_real_connect(mysql_conn, DB_HOST, DB_USER, DB_PASS, DB_NAME, 0, NULL, 0) == NULL) {
+	if (!(fh = fopen(".dbconnect", "r"))) {
+		fprintf(stderr, "Failed to open database connection file.\n");
+		return 0;
+	}
+
+	line_num = 0;
+	while (line_num < 4 && fgets(buffer, sizeof(buffer), fh) != NULL)  {
+		len = strlen(buffer);
+		mysql_connect_vars[line_num] = strdup(buffer);
+		if (buffer[len - 1] == '\n')
+			mysql_connect_vars[line_num][len - 1] = '\0';
+		line_num++;
+	}
+	fclose(fh);
+
+	if (mysql_real_connect(mysql_conn, DB_CONNECT_STR(mysql_connect_vars), 0, NULL, 0) == NULL) {
 		fprintf(stderr, "Failed to connect to MySQL: %s\n", mysql_error(mysql_conn));
 		mysql_close(mysql_conn);
 		mysql_conn = NULL;
