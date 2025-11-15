@@ -8,7 +8,11 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
-#include <database.h>
+#include <stddef.h>
+#include <pthread.h>
+
+#include "database.h"
+#include "sse_client_writer.h"
 
 #define MAX_EVENTS 10
 #define PORT 6262
@@ -39,17 +43,10 @@ static int send_sse_headers(int client_fd) {
 	return (bytes == (ssize_t)strlen(headers)) ? 0 : -1;
 }
 
-static int send_sse_event(int client_fd, const char *data) {
-	char buffer[BUFFER_SIZE];
-	snprintf(buffer, sizeof(buffer), "data: %s\n\n", data);
-	ssize_t bytes = write(client_fd, buffer, strlen(buffer));
-	return (bytes == (ssize_t)strlen(buffer)) ? 0 : -1;
-}
-
 static void log_event(const char *event_type, const char *event_data) {
 }
 
-int main() {
+int sse_server_start() {
 	int server_fd, epoll_fd;
 	struct sockaddr_in address;
 	struct epoll_event event, events[MAX_EVENTS];
@@ -184,9 +181,13 @@ int main() {
 			}
 		}
 	}
+	
+	sse_server_stop();
+	return 0;
+} 
 
+void sse_server_stop() {
 	db_close();
 	close(server_fd);
 	close(epoll_fd);
-	return 0;
-} 
+}

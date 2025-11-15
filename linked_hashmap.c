@@ -34,6 +34,7 @@ static lhm_node* create_entry(const char* key, void* value) {
     }
 
     entry->value = value;
+    // Collision list
     entry->next = NULL;
     entry->list_prev = NULL;
     entry->list_next = NULL;
@@ -134,6 +135,9 @@ int lhmap_put(lhmap* map, const char* key, void* value) {
     lhm_node* entry = map->buckets[index];
 
     while (entry) {
+    	// We need to allow duplicate keys right?
+	// price 1000.58, 1000.48 for example
+	// or price 1000 quantity 123, price 1000 quantity 22.
         if (strcmp(entry->key, key) == 0) {
             if (map->free_func) 
 	    	map->free_func(entry->value);
@@ -202,14 +206,20 @@ void* lhmap_remove(lhmap* map, const char* key) {
 
     while (entry) {
         if (strcmp(entry->key, key) == 0) {
-            if (prev) prev->next = entry->next;
-            else map->buckets[index] = entry->next;
+            if (prev) 
+	    	prev->next = entry->next;
+            else 
+	    	map->buckets[index] = entry->next;
 
-            if (entry->list_prev) entry->list_prev->list_next = entry->list_next;
-            else map->head = entry->list_next;
+            if (entry->list_prev) 
+	    	entry->list_prev->list_next = entry->list_next;
+            else 
+	    	map->head = entry->list_next;
 
-            if (entry->list_next) entry->list_next->list_prev = entry->list_prev;
-            else map->tail = entry->list_prev;
+            if (entry->list_next) 
+	    	entry->list_next->list_prev = entry->list_prev;
+            else 
+	    	map->tail = entry->list_prev;
 
             result = entry->value;
             free(entry->key);
