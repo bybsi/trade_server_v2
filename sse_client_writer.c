@@ -6,6 +6,7 @@
 
 #include "sse_client_writer.h"
 
+#define MAX_DATA_SEND_LEN 2048
 #define NUM_CLIENT_LISTS 3
 #define NUM_CLIENTS_PER_LIST 1000
 /*
@@ -17,14 +18,22 @@ typedef struct client_list_t {
 
 typedef struct client_list_manager_t {
 	pthread_mutex_t lock;
-	int client_fd_arr[NUM_CLIENTS_PER_LIST];
+	// +1 so we always end with a 0
+	int client_fd_arr[NUM_CLIENTS_PER_LIST + 1];
 	unsigned short last_insert_idx;
+	unsigned short last_read_idx;
+	unsigned short stop;
+	char **data_queue;
+	unsigned short data_queue_size;
+	pthread_t thread_id;
 } ST_CLIENT_LIST_MANAGER;
 
 typedef struct client_writer_t {
 	ST_CLIENT_LIST_MANAGER clm[NUM_CLIENT_LISTS];
 	unsigned short round_robin_idx;
 } ST_CLIENT_WRITER;
+
+
 
 /*
 ST_CLIENT_LIST_MANAGER * client_list_manager_init() {
@@ -43,7 +52,7 @@ static ST_CLIENT_LIST * new_client_list_node(int client_fd) {
 	return cl;
 }
 */
-ST_CLIENT_WRITER * client_writer_init() {
+ST_CLIENT_WRITER * client_writer_init(char **data_queue) {
 	unsigned short i;
 	ST_CLIENT_WRITER *client_writer = malloc(sizeof(ST_CLIENT_WRITER));
 	client_writer->round_robin_idx = 0;
@@ -52,11 +61,78 @@ ST_CLIENT_WRITER * client_writer_init() {
 			free(client_writer);
 			return NULL;
 		}
-		memset(client_writer->clm[i].client_fd_list, 0, 
-			sizeof(client_writer->clm[i].client_fd_list));
+		memset(client_writer->clm[i].client_fd_arr, 0, 
+			sizeof(client_writer->clm[i].client_fd_arr));
 		client_writer->clm[i].last_insert_idx = 0;
+		client_writer->clm[i].last_read_idx = 0;
+		client_writer->clm[i].stop = 0;
+		client_writer->clm[i].data_queue = data_queue;
 	}
 	return client_writer;
+}
+
+void start_client_writer(ST_CLIENT_WRITER *client_writer) {
+	unsigned short i;
+	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
+		pthread_create(&client_writer->clm[i].thread_id, NULL, client_write_thread, &client_writer->clm[i]);
+	}
+}
+
+void stop_client_writer() {
+	unsigned short i;
+	int *status;
+	for (i = 0; i < NUM_CLIENT_LISTS; i++) {		
+		pthread_mutex_lock(&client_writer->clm[i].lock);
+		client_writer->clm[i].stop = 1;
+		pthread_mutex_unlock(&client_writer->clm[i].lock);
+	}
+	
+	for (i = 0; i < NUM_CLIENT_LISTS; i++)
+		pthread_join(client_writer->clm[i].thread_id, (void **) &status);
+}
+
+static void *client_write_thread(void *clm) {
+	unsigned short i;
+	int *clients;
+	char **data;
+	char send_buffer[MAX_DATA_SEND_LEN];
+
+	ST_CLIENT_LIST_MANAGER *clm_ptr;
+	
+	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
+	clients = clm_ptr->client_fd_arr;
+	data    = clm_ptr->data_queue;
+	while (1) {
+		sleep(2);
+		
+		if (clm_ptr->stop) {
+			// TODO Log
+			return 0;
+		}
+
+		if (clm_ptr->last_read_idx == data_queue_size)
+			clm_ptr->last_read_idx = 0;
+
+		//pthread_mutex_lock(&clm->lock);
+		strncpy(send_buffer, data[clm_ptr->last_read_idx], MAX_DATA_SEND_LEN);
+		send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
+		// 0  indicates the end of the list.
+		// -1 indicates a lost connection.
+		// TODO: linked list to drop bad connections.
+		for (i = 0; clients[i] != 0; i++) {
+			if (clients[i] == -1)
+				continue;
+
+			if (send_sse_event(clients[i], send_buffer) < 0) {
+				// TODO Log error
+				clients[i] = -1;
+				close(clients[i]);
+			}
+		}
+		//pthread_mutex_unlock(&clm->lock);
+
+		clm_ptr->last_read_idx++;
+	}
 }
 
 static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *client_writer) {
@@ -65,7 +141,7 @@ static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *clie
 	return &client_writer->clm[client_writer->round_robin_idx++];
 }
 
-static void client_writer_add(ST_CLIENT_WRITER *client_writer, int client_fd) {
+static void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	unsigned short i = 0;
 	ST_CLIENT_LIST_MANAGER *clm = client_writer_get_manager(client_writer);
 
@@ -82,8 +158,9 @@ static void client_writer_add(ST_CLIENT_WRITER *client_writer, int client_fd) {
 		// log at capacity.
 		return;
 
-	pthread_mutex_lock(clm->lock);
-	//TODO
+	//pthread_mutex_lock(&clm->lock);
+	clm->client_fd_arr[clm->last_insert_idx++] = client_fd;
+	//pthread_mutex_unlock(&clm->lock);
 }
 
 int send_sse_event(int client_fd, const char *data) {
