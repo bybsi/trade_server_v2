@@ -9,5 +9,8 @@ WITH_MYSQL := $(shell mysql_config --cflags) $(shell mysql_config --libs)
 dbtest: database.c dbtest.c $(DBTABLES)
 	$(CCDBG) $(LDFLAGS) database.c dbtest.c $(DBTABLES) -o dbtest $(WITH_MYSQL)
 
+cwtest: sse_client_writer.c sse_client_writer_test.c
+	$(CCDBG) $(LDFLAGS) sse_client_writer.c sse_client_writer_test.c -o cwtest
+
 clean:
-	rm -f dbtest
+	rm -f dbtest cwtest
