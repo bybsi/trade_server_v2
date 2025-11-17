@@ -4,11 +4,13 @@
 #include <stddef.h>
 #include <pthread.h>
 
+#include "logger.h"
+
 #define MAX_DATA_SEND_LEN 2048
 #define NUM_CLIENT_LISTS 3
 #define NUM_CLIENTS_PER_LIST 1000
 
-typedef struct client_list_manager_t {
+typedef struct client_list_manager {
 	pthread_mutex_t lock;
 	// +1 so we always end with a 0
 	int client_fd_arr[NUM_CLIENTS_PER_LIST + 1];
@@ -22,9 +24,10 @@ typedef struct client_list_manager_t {
 	pthread_t thread_id;
 } ST_CLIENT_LIST_MANAGER;
 
-typedef struct client_writer_t {
+typedef struct client_writer {
 	ST_CLIENT_LIST_MANAGER clm[NUM_CLIENT_LISTS];
 	unsigned short round_robin_idx;
+	ST_LOGGER *logger;
 } ST_CLIENT_WRITER;
 
 int send_sse_event(int client_fd, const char *data);

@@ -6,11 +6,12 @@
 #include <pthread.h>
 
 #include "sse_client_writer.h"
+#include "logger.h"
 
 /*
-typedef struct client_list_t {
+typedef struct client_list {
 	int client_fd;
-	struct client_list_t *next;
+	struct client_list *next;
 } ST_CLIENT_LIST;
 */
 
@@ -24,20 +25,23 @@ static void *client_write_thread(void *clm) {
 	unsigned short i;
 	int *clients;
 	char **data;
-	char send_buffer[MAX_DATA_SEND_LEN];
-
+	char send_buffer[MAX_DATA_SEND_LEN], log_file_name[64];
+	ST_LOGGER *logger;
 	ST_CLIENT_LIST_MANAGER *clm_ptr;
 	
 	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
+	
+	snprintf(log_file_name, 64, "write_thread_%d", clm_ptr->id);
+	logger = logger_init(log_file_name);
 	clients = clm_ptr->client_fd_arr;
 	data    = clm_ptr->data_queue;
 	while (1) {
-		printf("In client_write_thread(%d)\n", clm_ptr->id);
+		//printf("In client_write_thread(%d)\n", clm_ptr->id);
 		sleep(2);
 		
 		if (clm_ptr->stop) {
-			// TODO Log
-			printf("Got stop flag(%d)\n", clm_ptr->id);
+			logger_write(logger, "Got stop flag.");
+			logger_close(logger);
 			return 0;
 		}
 
@@ -55,7 +59,9 @@ static void *client_write_thread(void *clm) {
 				continue;
 
 			if (send_sse_event(clients[i], send_buffer) < 0) {
-				// TODO Log error
+				// TODO variable arguments to logger_write like printf()
+				logger_write(logger, "Could not send SSE event:");
+				logger_write(logger, send_buffer);
 				clients[i] = -1;
 				close(clients[i]);
 			}
@@ -68,6 +74,7 @@ static void *client_write_thread(void *clm) {
 
 ST_CLIENT_WRITER * client_writer_init(char **data_queue, unsigned short data_queue_size) {
 	unsigned short i;
+	char log_file_name[64];
 	ST_CLIENT_WRITER *client_writer = malloc(sizeof(ST_CLIENT_WRITER));
 	client_writer->round_robin_idx = 0;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
@@ -82,11 +89,14 @@ ST_CLIENT_WRITER * client_writer_init(char **data_queue, unsigned short data_que
 		client_writer->clm[i].stop = 0;
 		client_writer->clm[i].data_queue = data_queue;
 		client_writer->clm[i].data_queue_size = data_queue_size;
-		printf("dq size: %d\n", client_writer->clm[i].data_queue_size);
-
+	
 		//REMOVE
 		client_writer->clm[i].id = i+1;
 	}
+	
+	snprintf(log_file_name, 64, "client_writer.log");
+	client_writer->logger = logger_init(log_file_name);
+	logger_write(client_writer->logger, "Started client writer.");
 	return client_writer;
 }
 
@@ -108,8 +118,9 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 	
 	for (i = 0; i < NUM_CLIENT_LISTS; i++)
 		pthread_join(client_writer->clm[i].thread_id, (void **) &status);
-
-	printf("client writer stopped\n");
+	
+	logger_write(client_writer->logger, "Stopped client writer.");
+	logger_close(client_writer->logger);
 }
 
 void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
