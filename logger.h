@@ -8,7 +8,7 @@ typedef struct logger {
 	pthread_mutex_t lock;
 } ST_LOGGER;
 
-ST_LOGGER * logger_init(char *filepath);
+ST_LOGGER * logger_init(char *file_name);
 void logger_write(ST_LOGGER *logger, char *message);
 void logger_close(ST_LOGGER *logger);
 

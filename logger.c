@@ -19,7 +19,8 @@ ST_LOGGER * logger_init(char *file_name) {
 	}
 
 	snprintf(filepath, 128, LOG_DIR "%s", file_name);
-	if (!(fh = fopen(filepath, "a"))) {
+	//if (!(fh = fopen(filepath, "a"))) {
+	if (!(fh = fopen(filepath, "w"))) {
 		fprintf(stderr, "Could not initialize logger: %s\n", filepath);
 		free(logger);
 		return NULL;
