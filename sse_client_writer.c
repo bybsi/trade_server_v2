@@ -21,7 +21,7 @@ static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *clie
 	return &client_writer->clm[client_writer->round_robin_idx++];
 }
 
-static void *client_write_thread(void *clm) {
+void *client_write_thread(void *clm) {
 	unsigned short i;
 	int *clients;
 	char **data;
@@ -31,12 +31,12 @@ static void *client_write_thread(void *clm) {
 	
 	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
 	
-	snprintf(log_file_name, 64, "write_thread_%d", clm_ptr->id);
+	snprintf(log_file_name, 64, "write_thread_%d.log", clm_ptr->id);
 	logger = logger_init(log_file_name);
 	clients = clm_ptr->client_fd_arr;
 	data    = clm_ptr->data_queue;
 	while (1) {
-		//printf("In client_write_thread(%d)\n", clm_ptr->id);
+		printf("In client_write_thread(%d)\n", clm_ptr->id);
 		sleep(2);
 		
 		if (clm_ptr->stop) {
@@ -62,8 +62,8 @@ static void *client_write_thread(void *clm) {
 				// TODO variable arguments to logger_write like printf()
 				logger_write(logger, "Could not send SSE event:");
 				logger_write(logger, send_buffer);
+				// close(clients[i]); // causes crash...
 				clients[i] = -1;
-				close(clients[i]);
 			}
 		}
 		//pthread_mutex_unlock(&clm->lock);
@@ -143,7 +143,7 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	}
 
 	//pthread_mutex_lock(&clm->lock);
-	printf("\tAdding client(%d) to writer(%d)\n", clm->id, client_fd);
+	printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
 	clm->client_fd_arr[clm->last_insert_idx++] = client_fd;
 	//pthread_mutex_unlock(&clm->lock);
 }
@@ -155,6 +155,7 @@ int send_sse_event(int client_fd, const char *data) {
 	snprintf(buffer, sizeof(buffer), "data: %s\n\n", data);
 	ssize_t bytes = write(client_fd, buffer, strlen(buffer));
 */
+	return -1;
 	ssize_t data_len = strlen(data);
 	ssize_t bytes = write(client_fd, data, data_len);
 	return (bytes == data_len) ? 0 : -1;

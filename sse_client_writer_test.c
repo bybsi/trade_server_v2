@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "sse_client_writer.h"
 /*
@@ -22,7 +23,7 @@ int main(int argc, char *argv[]) {
 	printf("%lu\n", sizeof(data) / sizeof(data[0]));
 	cw = client_writer_init(data, sizeof(data) / sizeof(data[0]));
 
-	for (i = 0; i < 5; i++)
+	for (i = 1; i < 5; i++)
 		client_writer_add_client(cw, i);
 
 	client_writer_start(cw);
@@ -30,6 +31,7 @@ int main(int argc, char *argv[]) {
 	for (i = 5; i < 10; i++)
 		client_writer_add_client(cw, i);
 
+	sleep(7);
 	client_writer_stop(cw);
 	exit(0);
 } 

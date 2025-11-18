@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
@@ -12,20 +14,34 @@
 #include <pthread.h>
 
 #include "database.h"
+#include "logger.h"
+#include "sse_server.h"
 #include "sse_client_writer.h"
 
 #define MAX_EVENTS 10
-#define PORT 6262
 #define BUFFER_SIZE 1024
+
+volatile sig_atomic_t stop_signal_received = 0;
+void stop_server_handler(int signal) {
+	stop_signal_received = 1;
+}
+
+static ST_LOGGER *sse_logger = NULL;
+static void sse_log(char *message) {
+	if (!sse_logger) {
+		sse_logger = logger_init("sse_server.log");
+	}
+	logger_write(sse_logger, message);
+}
 
 static int make_socket_non_blocking(int sockfd) {
 	int flags = fcntl(sockfd, F_GETFL, 0);
 	if (flags == -1) {
-		perror("fcntl F_GETFL");
+		fprintf(stderr, "fcntl F_GETFL failed\n");
 		return -1;
 	}
 	if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
-		perror("fcntl F_SETFL");
+		fprintf(stderr, "fcntl F_SETFL failed\n");
 		return -1;
 	}
 	return 0;
@@ -43,42 +59,73 @@ static int send_sse_headers(int client_fd) {
 	return (bytes == (ssize_t)strlen(headers)) ? 0 : -1;
 }
 
-static void log_event(const char *event_type, const char *event_data) {
+static void sse_server_destroy(ST_SSE_SERVER *server) {
+	unsigned short i;
+	sse_log("sse_server_destroy called\n");
+	
+	client_writer_stop(server->client_writer);
+	for (i = 0; i < server->data_queue_size; i++) 
+		free(server->data_queue[i]);
+	free(server->data_queue);
+	free(server->client_writer);
+	free(server);
+	
+	logger_close(sse_logger);
+
 }
 
-int sse_server_start() {
-	int server_fd, epoll_fd;
-	struct sockaddr_in address;
-	struct epoll_event event, events[MAX_EVENTS];
-
-	if (db_init() < 0) {
-		fprintf(stderr, "Failed to initialize MySQL\n");
-		exit(255);
+ST_SSE_SERVER * sse_server_init(
+	unsigned short port, 
+	unsigned short data_queue_size
+){
+	unsigned short i;
+	ST_SSE_SERVER * server = malloc(sizeof(ST_SSE_SERVER));
+	// Pre initialize the data queue for now.
+	char **data_queue = malloc(data_queue_size * sizeof(char *));
+	for (i = 0; i < data_queue_size; i++) {
+		data_queue[i] = malloc(MAX_DATA_SEND_LEN + 1);
+		data_queue[i][0] = '\0';
 	}
+	server->data_queue = data_queue;
+	server->data_queue_size = data_queue_size;
+	server->data_insert_idx = 0;
+	server->client_writer = client_writer_init(data_queue, data_queue_size);
+	server->port;
+	return server;
+}
+
+void *server_thread (void *server_vp) {
+	char error_buffer[512];
+	int server_fd, epoll_fd, signal_fd, epoll_result;
+	sigset_t block_mask, old_mask;
+	struct sigaction sa;
+	struct sockaddr_in address;
+	struct epoll_event event, stop_event, events[MAX_EVENTS];
+	ST_SSE_SERVER *server = (ST_SSE_SERVER *) server_vp;
 
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd < 0) {
-		perror("Could not create socket.");
+		fprintf(stderr, "Could not create socket\n");
 		exit(255);
 	}
 
 	int opt = 1;
 	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-		perror("setsockopt failed.");
+		fprintf(stderr, "setsockopt failed\n");
 		exit(255);
 	}
 
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(PORT);
+	address.sin_port = htons(server->port);
 
 	if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-		perror("bind failed.");
+		fprintf(stderr, "bind failed\n");
 		exit(255);
 	}
 
 	if (listen(server_fd, SOMAXCONN) < 0) {
-		perror("listen failed.");
+		fprintf(stderr, "listen failed\n");
 		exit(255);
 	}
 
@@ -87,24 +134,64 @@ int sse_server_start() {
 
 	epoll_fd = epoll_create1(0);
 	if (epoll_fd < 0) {
-		perror("epoll_create1 failed.");
+		fprintf(stderr, "epoll_create1 failed\n");
 		exit(255);
 	}
 
 	event.events = EPOLLIN;
 	event.data.fd = server_fd;
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event) < 0) {
-		perror("epoll_ctl");
+		fprintf(stderr, "epoll_ctl add server_fd failed\n");
 		exit(255);
 	}
 
-	printf("SSE Server started on port %d\n", PORT);
+	signal(SIGINT, stop_server_handler);
+	signal(SIGTERM, stop_server_handler);
+	sa.sa_handler = stop_server_handler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+	sigemptyset(&block_mask);
+	sigaddset(&block_mask, SIGINT);
+	sigaddset(&block_mask, SIGTERM);
 
-	while (1) {
-		// Need to add break case and SIGINT SIGTERM SIGKILL handling
+	if (sigprocmask(SIG_BLOCK, &block_mask, &old_mask) == -1) {
+		fprintf(stderr, "Could not setup epoll exit signaling\n");
+		exit(255);
+	}
+	/*
+	signal_fd = signalfd(-1, &mask, 0);
+	if (signal_fd == -1) {
+		fprintf(stderr, "Could not setup signal_fd\n");
+		exit(255);
+	}
+	
+	stop_event.data.fd = signal_fd;
+	stop_event.events = EPOLLIN;
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &stop_event) == -1) {
+		fprintf(stderr, "epoll_ctl add signal_fd failed\n");
+		exit(255);
+	}
+	*/
 
-		int n = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-		for (int i = 0; i < n; i++) {
+	printf("SSE Server started on port %d\n", server->port);
+
+	while (!stop_signal_received) {
+		
+		//epoll_result = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+		epoll_result = epoll_pwait(epoll_fd, events, MAX_EVENTS, -1, &old_mask);
+		if (epoll_result == -1) {
+			if (errno == EINTR) {
+				// stop_signal_received should now be 1
+				continue;
+			} else {
+				sse_log("epoll_pwait error\n");
+				break;
+			}
+		}
+
+		for (int i = 0; i < epoll_result; i++) {
 			if (events[i].data.fd == server_fd) {
 				// Handle new connection
 				struct sockaddr_in client_addr;
@@ -113,7 +200,11 @@ int sse_server_start() {
 				
 				if (client_fd < 0) {
 					if (errno != EAGAIN && errno != EWOULDBLOCK) {
-						perror("accept");
+						snprintf(error_buffer,
+							sizeof(error_buffer),
+							"Error accepting connection errno: %d",
+							errno);
+						sse_log(error_buffer);
 					}
 					continue;
 				}
@@ -126,68 +217,63 @@ int sse_server_start() {
 				event.events = EPOLLIN | EPOLLET;
 				event.data.fd = client_fd;
 				if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) < 0) {
-					perror("epoll_ctl");
+					sse_log("epoll ctl add error");
 					close(client_fd);
 					continue;
 				}
 
 				if (send_sse_headers(client_fd) < 0) {
-					perror("Failed to send SSE headers");
+					sse_log("Failed to send SSE headers");
 					close(client_fd);
 					continue;
 				}
-				printf("New client connected\n");
 				
-				log_event("connection", "New client connected");
-
-				// Send latest data.
-				/*
-				if (latest_data) {
-					if (send_sse_event(client_fd, latest_data) < 0) {
-						perror("Failed to send latest data");
-						free(latest_data);
-						close(client_fd);
-						continue;
-					}
-					free(latest_data);
-				}
-				*/
-
+				sse_log("Client connected");
+				client_writer_add_client(server->client_writer, client_fd);
 			} else {
 				// Handle client data
+				// Should never get here because this is a write
+				// only server (SSE).
 				char buffer[BUFFER_SIZE];
 				ssize_t count = read(events[i].data.fd, buffer, sizeof(buffer));
-				
+				sse_log("Made it to handle client data loop");
 				if (count <= 0) {
 					if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-						perror("read");
+						snprintf(error_buffer,
+							sizeof(error_buffer),
+							"Error reading client data: %d",
+							errno);
+						sse_log(error_buffer);
 					}
-					printf("Client disconnected\n");
-					log_event("disconnection", "Client disconnected");
+					sse_log("Client disconnected");
 					close(events[i].data.fd);
 					continue;
 				}
-
-				// send latest data
-				//time_t now = time(NULL);
-				//char timestamp[64];
-				//strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
-				
-				//if (send_sse_event(events[i].data.fd, timestamp) < 0) {
-				//	perror("Failed to send timestamp");
-				//	close(events[i].data.fd);
-				//	continue;
-				//}
 			}
 		}
 	}
 	
-	sse_server_stop();
+	sse_server_destroy(server);
+	close(epoll_fd);
+	close(server_fd);
 	return 0;
 } 
 
-void sse_server_stop() {
-	db_close();
-	close(server_fd);
-	close(epoll_fd);
+pthread_t sse_server_start(ST_SSE_SERVER *server) {
+	pthread_t server_tid;
+	client_writer_start(server->client_writer);
+	pthread_create(&server_tid, NULL, server_thread, server);
+	return server_tid;
 }
+
+void sse_server_queue_data(ST_SSE_SERVER * server, char *data) {
+	if (server->data_insert_idx == server->data_queue_size)
+		server->data_insert_idx = 0;
+	strncpy(server->data_queue[server->data_insert_idx], data, MAX_DATA_SEND_LEN);
+}
+
+void sse_server_stop(ST_SSE_SERVER *server) {
+	sse_log("sse_server_stop called");
+	raise(SIGTERM);
+}
+
