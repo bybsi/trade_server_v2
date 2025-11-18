@@ -12,5 +12,7 @@ dbtest: database.c dbtest.c $(DBTABLES)
 cwtest: sse_client_writer.c sse_client_writer_test.c logger.c
 	$(CCDBG) $(LDFLAGS) sse_client_writer.c sse_client_writer_test.c logger.c -o cwtest
 
+servertest: sse_client_writer.c logger.c sse_server.c sse_server_test.c
+	$(CCDBG) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c sse_server_test.c -o servertest
 clean:
-	rm -f dbtest cwtest
+	rm -f dbtest cwtest servertest
