@@ -227,11 +227,10 @@ void *server_thread (void *server_vp) {
 				client_writer_add_client(server->client_writer, client_fd);
 			} else {
 				// Handle client data
-				// Should never get here because this is a write
-				// only server (SSE).
+				// Should never get here after headers are received since
+				// this is a write only server (SSE).
 				char buffer[BUFFER_SIZE];
 				ssize_t count = read(events[i].data.fd, buffer, sizeof(buffer));
-				sse_log("Made it to handle client data loop");
 				if (count <= 0) {
 					if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
 						snprintf(error_buffer,
@@ -244,6 +243,8 @@ void *server_thread (void *server_vp) {
 					close(events[i].data.fd);
 					continue;
 				}
+				if (verbose)
+					printf("Headers: %s\n", buffer);
 			}
 		}
 	}

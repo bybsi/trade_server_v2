@@ -70,7 +70,7 @@ void *client_write_thread(void *clm) {
 		send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
 
 		if (verbose)
-			printf("Sending(%d), %s\n", clm_ptr->id, send_buffer);
+			printf("Sending(%d), %s", clm_ptr->id, send_buffer);
 
 		// 0  indicates the end of the list.
 		// -1 indicates a lost connection.
@@ -213,7 +213,6 @@ int send_sse_event(int client_fd, const char *data) {
 	snprintf(buffer, sizeof(buffer), "data: %s\n\n", data);
 	ssize_t bytes = write(client_fd, buffer, strlen(buffer));
 */
-	return -1;
 	ssize_t data_len = strlen(data);
 	ssize_t bytes = write(client_fd, data, data_len);
 	return (bytes == data_len) ? 0 : -1;

@@ -16,6 +16,14 @@ int main(int argc, char *argv[]) {
 	ST_CLIENT_WRITER *cw;
 	ST_SSE_SERVER *server;
 	
+	char buffer[1024];
+	char *data[] = {
+		"data 1",
+		"data 2",
+		"data data 3",
+		NULL
+	};
+
 	server = sse_server_init(PORT, DATA_Q_SIZE);
 	if (!server) {
 		printf("Could not initialize server.\n");
@@ -25,15 +33,19 @@ int main(int argc, char *argv[]) {
 	
 	printf("Test server started...\n");
 	
-	for (i = 1; i < 5; i++)
-		client_writer_add_client(server->client_writer, i);
-	sleep(2);
-	printf("Slept for two seconds... adding data\n");
-	sse_server_queue_data(server, "data 1\n");
-	sse_server_queue_data(server, "data 2\n");
-	sse_server_queue_data(server, "data 3\n");
+	for (i = 0; data[i]; i++) {
+		sleep(1);
+		snprintf(buffer, 1024, "event: Y\ndata: %s\n\n", data[i]);
+		sse_server_queue_data(server, buffer);
+	}
+	
+	for (i = 0; data[i]; i++) {
+		sleep(1);
+		snprintf(buffer, 1024, "event: Y\ndata: %s\n\n", data[i]);
+		sse_server_queue_data(server, buffer);
+	}
 
-	sleep(5);
+	sleep(20);
 	sse_server_stop(server);
 	exit(0);
 } 
