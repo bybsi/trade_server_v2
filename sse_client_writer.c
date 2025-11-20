@@ -98,7 +98,7 @@ ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 	char log_file_name[64];
 	ST_CLIENT_WRITER *client_writer = malloc(sizeof(ST_CLIENT_WRITER));
 	client_writer->round_robin_idx = 0;
-	client_writer->last_write_idx = 0;
+	client_writer->last_data_write_idx = 0;
 	client_writer->data_queue_size = data_queue_size;
 	client_writer->data_queue = malloc(data_queue_size * sizeof(ST_CLIENT_DATA_NODE));
 	for (i = 0; i < data_queue_size; i++) {
@@ -189,13 +189,13 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	
 void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data) {
 	ST_CLIENT_DATA_NODE *data_node;
-	if (client_writer->last_write_idx == client_writer->data_queue_size)
-		client_writer->last_write_idx = 0;
+	if (client_writer->last_data_write_idx == client_writer->data_queue_size)
+		client_writer->last_data_write_idx = 0;
 	
 	if (verbose)
-		printf("adding data to %d, %s", client_writer->last_write_idx, data);
+		printf("adding data to %d, %s", client_writer->last_data_write_idx, data);
 
-	data_node = &client_writer->data_queue[client_writer->last_write_idx++];
+	data_node = &client_writer->data_queue[client_writer->last_data_write_idx++];
 	data_node->id = time(NULL);
 	memcpy(data_node->data, data, MAX_DATA_SEND_LEN);
 	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';

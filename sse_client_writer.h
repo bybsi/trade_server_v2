@@ -35,7 +35,7 @@ typedef struct client_writer {
 	unsigned short round_robin_idx;
 	ST_CLIENT_DATA_NODE *data_queue;
 	unsigned short data_queue_size;
-	unsigned short last_write_idx;
+	unsigned short last_data_write_idx;
 	ST_LOGGER *logger;
 } ST_CLIENT_WRITER;
 
