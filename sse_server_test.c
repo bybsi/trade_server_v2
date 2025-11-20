@@ -6,13 +6,6 @@
 #include <unistd.h>
 
 #include "sse_server.h"
-/*
-int send_sse_event(int client_fd, const char *data);
-ST_CLIENT_WRITER client_writer_init(char **data_queue);
-void client_writer_start(ST_CLIENT_WRITER *client_writer);
-void client_writer_stop(ST_CLIENT_WRITER *client_writer);
-void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd);
-*/
 
 #define PORT 6262
 #define DATA_Q_SIZE 10

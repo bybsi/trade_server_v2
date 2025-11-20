@@ -29,14 +29,16 @@ void *client_write_thread(void *clm) {
 	unsigned long long last_data_id;
 	int *clients;
 	char send_buffer[MAX_DATA_SEND_LEN], log_file_name[64];
-	ST_LOGGER *logger;
+
+	ST_LOGGER              *logger;
 	ST_CLIENT_LIST_MANAGER *clm_ptr;
-	ST_CLIENT_DATA_NODE *data;
+	ST_CLIENT_DATA_NODE    *data;
 	
 	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
 	
 	snprintf(log_file_name, 64, "write_thread_%d.log", clm_ptr->id);
 	logger = logger_init(log_file_name);
+
 	clients = clm_ptr->client_fd_arr;
 	data    = clm_ptr->data_queue;
 	last_data_id = 0;
