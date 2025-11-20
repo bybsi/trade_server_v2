@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stddef.h>
+#include <time.h>
 #include <pthread.h>
 
 #include "sse_client_writer.h"
@@ -15,6 +16,8 @@ typedef struct client_list {
 } ST_CLIENT_LIST;
 */
 
+static int verbose = 1;
+
 static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *client_writer) {
 	if (client_writer->round_robin_idx == NUM_CLIENT_LISTS)
 		client_writer->round_robin_idx = 0;
@@ -23,11 +26,12 @@ static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *clie
 
 void *client_write_thread(void *clm) {
 	unsigned short i;
+	unsigned long long last_data_id;
 	int *clients;
-	char **data;
 	char send_buffer[MAX_DATA_SEND_LEN], log_file_name[64];
 	ST_LOGGER *logger;
 	ST_CLIENT_LIST_MANAGER *clm_ptr;
+	ST_CLIENT_DATA_NODE *data;
 	
 	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
 	
@@ -35,8 +39,11 @@ void *client_write_thread(void *clm) {
 	logger = logger_init(log_file_name);
 	clients = clm_ptr->client_fd_arr;
 	data    = clm_ptr->data_queue;
+	last_data_id = 0;
 	while (1) {
-		printf("In client_write_thread(%d)\n", clm_ptr->id);
+		if (verbose)
+			printf("In client_write_thread(%d)\n", clm_ptr->id);
+
 		sleep(2);
 		
 		if (clm_ptr->stop) {
@@ -49,8 +56,20 @@ void *client_write_thread(void *clm) {
 			clm_ptr->last_read_idx = 0;
 
 		//pthread_mutex_lock(&clm->lock);
-		strncpy(send_buffer, data[clm_ptr->last_read_idx], MAX_DATA_SEND_LEN);
+
+		// Send the most recent record if it hasn't been sent.
+		// This also handles cases where thre is no data
+		// at the current index because the timestamp(id) is still 0.
+		if (last_data_id >= data[clm_ptr->last_read_idx].id)
+			continue;
+		last_data_id = data[clm_ptr->last_read_idx].id;
+
+		memcpy(send_buffer, data[clm_ptr->last_read_idx].data, MAX_DATA_SEND_LEN);
 		send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
+
+		if (verbose)
+			printf("Sending(%d), %s\n", clm_ptr->id, send_buffer);
+
 		// 0  indicates the end of the list.
 		// -1 indicates a lost connection.
 		// TODO: linked list to drop bad connections.
@@ -59,7 +78,7 @@ void *client_write_thread(void *clm) {
 				continue;
 
 			if (send_sse_event(clients[i], send_buffer) < 0) {
-				// TODO variable arguments to logger_write like printf()
+				// TODO variable length arguments to logger_write like printf()
 				logger_write(logger, "Could not send SSE event:");
 				logger_write(logger, send_buffer);
 				// close(clients[i]); // causes crash...
@@ -72,13 +91,22 @@ void *client_write_thread(void *clm) {
 	}
 }
 
-ST_CLIENT_WRITER * client_writer_init(char **data_queue, unsigned short data_queue_size) {
+ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 	unsigned short i;
 	char log_file_name[64];
 	ST_CLIENT_WRITER *client_writer = malloc(sizeof(ST_CLIENT_WRITER));
 	client_writer->round_robin_idx = 0;
+	client_writer->last_write_idx = 0;
+	client_writer->data_queue_size = data_queue_size;
+	client_writer->data_queue = malloc(data_queue_size * sizeof(ST_CLIENT_DATA_NODE));
+	for (i = 0; i < data_queue_size; i++) {
+		client_writer->data_queue[i].id = 0;
+		client_writer->data_queue[i].data[0] = '\0';
+	}
+
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
 		if (pthread_mutex_init(&client_writer->clm[i].lock, NULL) != 0) {
+			free(client_writer->data_queue);
 			free(client_writer);
 			return NULL;
 		}
@@ -87,7 +115,8 @@ ST_CLIENT_WRITER * client_writer_init(char **data_queue, unsigned short data_que
 		client_writer->clm[i].last_insert_idx = 0;
 		client_writer->clm[i].last_read_idx = 0;
 		client_writer->clm[i].stop = 0;
-		client_writer->clm[i].data_queue = data_queue;
+
+		client_writer->clm[i].data_queue = client_writer->data_queue;
 		client_writer->clm[i].data_queue_size = data_queue_size;
 	
 		//REMOVE
@@ -125,6 +154,7 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 
 void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	unsigned short i = 0;
+	static unsigned short capacity_logged = 0;
 	ST_CLIENT_LIST_MANAGER *clm = client_writer_get_manager(client_writer);
 
 	/*
@@ -138,14 +168,40 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 
 	if (clm->last_insert_idx == NUM_CLIENTS_PER_LIST) {
 		// log at capacity.
-		printf("\t\tCapacity reached for writer(%d)\n", clm->id);
+		if (!capacity_logged) {
+			char buffer[128];
+			snprintf(buffer, 128, "Capacity reached for writer(%d)", clm->id);
+			logger_write(client_writer->logger, buffer);
+			capacity_logged = 1;
+		}
 		return;
 	}
 
 	//pthread_mutex_lock(&clm->lock);
-	printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
+	if (verbose)
+		printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
+
 	clm->client_fd_arr[clm->last_insert_idx++] = client_fd;
 	//pthread_mutex_unlock(&clm->lock);
+}
+	
+void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data) {
+	ST_CLIENT_DATA_NODE *data_node;
+	if (client_writer->last_write_idx == client_writer->data_queue_size)
+		client_writer->last_write_idx = 0;
+	
+	if (verbose)
+		printf("adding data to %d, %s", client_writer->last_write_idx, data);
+
+	data_node = &client_writer->data_queue[client_writer->last_write_idx++];
+	data_node->id = time(NULL);
+	memcpy(data_node->data, data, MAX_DATA_SEND_LEN);
+	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';
+}
+
+void client_writer_destroy(ST_CLIENT_WRITER *client_writer) {
+	free(client_writer->data_queue);
+	free(client_writer);
 }
 
 int send_sse_event(int client_fd, const char *data) {

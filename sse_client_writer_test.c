@@ -4,13 +4,6 @@
 #include <unistd.h>
 
 #include "sse_client_writer.h"
-/*
-int send_sse_event(int client_fd, const char *data);
-ST_CLIENT_WRITER client_writer_init(char **data_queue);
-void client_writer_start(ST_CLIENT_WRITER *client_writer);
-void client_writer_stop(ST_CLIENT_WRITER *client_writer);
-void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd);
-*/
 
 int main(int argc, char *argv[]) {
 	int i;
@@ -18,10 +11,11 @@ int main(int argc, char *argv[]) {
 	char *data[] = {
 		"data: HERE IS DATA STRING 1\n\n",
 		"data: HERE IS DATA STRING 2\n\n",
-		"data: HERE IS DATA STRING 3\n\n"
+		"data: HERE IS DATA STRING 3\n\n",
+		NULL
 	};
-	printf("%lu\n", sizeof(data) / sizeof(data[0]));
-	cw = client_writer_init(data, sizeof(data) / sizeof(data[0]));
+	//printf("%lu\n", sizeof(data) / sizeof(data[0]));
+	cw = client_writer_init(10);
 
 	for (i = 1; i < 5; i++)
 		client_writer_add_client(cw, i);
@@ -31,7 +25,13 @@ int main(int argc, char *argv[]) {
 	for (i = 5; i < 10; i++)
 		client_writer_add_client(cw, i);
 
+	for (i = 0; data[i]; i++) {
+		client_writer_queue_data(cw, data[i]);
+		sleep(1);
+	}
+
 	sleep(7);
 	client_writer_stop(cw);
+	client_writer_destroy(cw);
 	exit(0);
 } 

@@ -21,6 +21,8 @@
 #define MAX_EVENTS 10
 #define BUFFER_SIZE 1024
 
+static int verbose = 0;
+
 volatile sig_atomic_t stop_signal_received = 0;
 void stop_server_handler(int signal) {
 	stop_signal_received = 1;
@@ -64,9 +66,7 @@ static void sse_server_destroy(ST_SSE_SERVER *server) {
 	sse_log("sse_server_destroy called\n");
 	
 	client_writer_stop(server->client_writer);
-	for (i = 0; i < server->data_queue_size; i++) 
-		free(server->data_queue[i]);
-	free(server->data_queue);
+	client_writer_destroy(server->client_writer);
 	free(server->client_writer);
 	free(server);
 	
@@ -80,17 +80,12 @@ ST_SSE_SERVER * sse_server_init(
 ){
 	unsigned short i;
 	ST_SSE_SERVER * server = malloc(sizeof(ST_SSE_SERVER));
-	// Pre initialize the data queue for now.
-	char **data_queue = malloc(data_queue_size * sizeof(char *));
-	for (i = 0; i < data_queue_size; i++) {
-		data_queue[i] = malloc(MAX_DATA_SEND_LEN + 1);
-		data_queue[i][0] = '\0';
+	server->client_writer = client_writer_init(data_queue_size);
+	if (!server->client_writer) {
+		printf("Could not initialize client_writer\n");
+		return NULL;
 	}
-	server->data_queue = data_queue;
-	server->data_queue_size = data_queue_size;
-	server->data_insert_idx = 0;
-	server->client_writer = client_writer_init(data_queue, data_queue_size);
-	server->port;
+	server->port = port;
 	return server;
 }
 
@@ -267,9 +262,7 @@ pthread_t sse_server_start(ST_SSE_SERVER *server) {
 }
 
 void sse_server_queue_data(ST_SSE_SERVER * server, char *data) {
-	if (server->data_insert_idx == server->data_queue_size)
-		server->data_insert_idx = 0;
-	strncpy(server->data_queue[server->data_insert_idx], data, MAX_DATA_SEND_LEN);
+	client_writer_queue_data(server->client_writer, data);
 }
 
 void sse_server_stop(ST_SSE_SERVER *server) {

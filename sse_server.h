@@ -7,11 +7,9 @@
 #include "logger.h"
 #include "sse_client_writer.h"
 
+
 typedef struct sse_server {
 	unsigned short port;
-	unsigned short data_queue_size;
-	char **data_queue;
-	unsigned short data_insert_idx;
 	ST_CLIENT_WRITER *client_writer;
 } ST_SSE_SERVER;
 

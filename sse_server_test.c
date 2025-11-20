@@ -24,15 +24,23 @@ int main(int argc, char *argv[]) {
 	ST_SSE_SERVER *server;
 	
 	server = sse_server_init(PORT, DATA_Q_SIZE);
+	if (!server) {
+		printf("Could not initialize server.\n");
+		exit(0);
+	}
 	server_tid = sse_server_start(server);
 	
 	printf("Test server started...\n");
+	
+	for (i = 1; i < 5; i++)
+		client_writer_add_client(server->client_writer, i);
 	sleep(2);
 	printf("Slept for two seconds... adding data\n");
-	sse_server_queue_data(server, "data 1");
+	sse_server_queue_data(server, "data 1\n");
 	sse_server_queue_data(server, "data 2\n");
-	sse_server_queue_data(server, "data 3");
+	sse_server_queue_data(server, "data 3\n");
 
+	sleep(5);
 	sse_server_stop(server);
 	exit(0);
 } 
