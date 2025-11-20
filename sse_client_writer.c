@@ -18,7 +18,7 @@ typedef struct client_list {
 
 static int verbose = 1;
 
-static ST_CLIENT_LIST_MANAGER * client_writer_get_manager(ST_CLIENT_WRITER *client_writer) {
+static ST_CLIENT_LIST_MANAGER * client_writer_select_manager(ST_CLIENT_WRITER *client_writer) {
 	if (client_writer->round_robin_idx == NUM_CLIENT_LISTS)
 		client_writer->round_robin_idx = 0;
 	return &client_writer->clm[client_writer->round_robin_idx++];
@@ -155,12 +155,12 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	unsigned short i = 0;
 	static unsigned short capacity_logged = 0;
-	ST_CLIENT_LIST_MANAGER *clm = client_writer_get_manager(client_writer);
+	ST_CLIENT_LIST_MANAGER *clm = client_writer_select_manager(client_writer);
 
 	/*
 	// Sacrifice two slots for efficiency
 	do {
-		clm = client_writer_get_manager(client_writer);
+		clm = client_writer_select_manager(client_writer);
 	} while (
 		clm->last_insert_idx == NUM_CLIENTS_PER_LIST && 
 		client_writer->round_robin_idx != NUM_CLIENT_LISTS);
