@@ -20,8 +20,8 @@ typedef struct client_list_manager {
 	pthread_mutex_t lock;
 	// +1 so we always end with a 0
 	int client_fd_arr[NUM_CLIENTS_PER_LIST + 1];
-	unsigned short last_insert_idx;
-	unsigned short last_read_idx;
+	unsigned short last_client_insert_idx;
+	unsigned short last_data_read_idx;
 	unsigned short stop;
 	ST_CLIENT_DATA_NODE *data_queue;
 	unsigned short data_queue_size;

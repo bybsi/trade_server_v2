@@ -54,19 +54,19 @@ void *client_write_thread(void *clm) {
 			return 0;
 		}
 
-		if (clm_ptr->last_read_idx == clm_ptr->data_queue_size)
-			clm_ptr->last_read_idx = 0;
+		if (clm_ptr->last_data_read_idx == clm_ptr->data_queue_size)
+			clm_ptr->last_data_read_idx = 0;
 
 		//pthread_mutex_lock(&clm->lock);
 
 		// Send the most recent record if it hasn't been sent.
 		// This also handles cases where thre is no data
 		// at the current index because the timestamp(id) is still 0.
-		if (last_data_id >= data[clm_ptr->last_read_idx].id)
+		if (last_data_id >= data[clm_ptr->last_data_read_idx].id)
 			continue;
-		last_data_id = data[clm_ptr->last_read_idx].id;
+		last_data_id = data[clm_ptr->last_data_read_idx].id;
 
-		memcpy(send_buffer, data[clm_ptr->last_read_idx].data, MAX_DATA_SEND_LEN);
+		memcpy(send_buffer, data[clm_ptr->last_data_read_idx].data, MAX_DATA_SEND_LEN);
 		send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
 
 		if (verbose)
@@ -89,7 +89,7 @@ void *client_write_thread(void *clm) {
 		}
 		//pthread_mutex_unlock(&clm->lock);
 
-		clm_ptr->last_read_idx++;
+		clm_ptr->last_data_read_idx++;
 	}
 }
 
@@ -114,8 +114,8 @@ ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 		}
 		memset(client_writer->clm[i].client_fd_arr, 0, 
 			sizeof(client_writer->clm[i].client_fd_arr));
-		client_writer->clm[i].last_insert_idx = 0;
-		client_writer->clm[i].last_read_idx = 0;
+		client_writer->clm[i].last_client_insert_idx = 0;
+		client_writer->clm[i].last_data_read_idx = 0;
 		client_writer->clm[i].stop = 0;
 
 		client_writer->clm[i].data_queue = client_writer->data_queue;
@@ -164,11 +164,11 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	do {
 		clm = client_writer_select_manager(client_writer);
 	} while (
-		clm->last_insert_idx == NUM_CLIENTS_PER_LIST && 
+		clm->last_client_insert_idx == NUM_CLIENTS_PER_LIST && 
 		client_writer->round_robin_idx != NUM_CLIENT_LISTS);
 	*/
 
-	if (clm->last_insert_idx == NUM_CLIENTS_PER_LIST) {
+	if (clm->last_client_insert_idx == NUM_CLIENTS_PER_LIST) {
 		// log at capacity.
 		if (!capacity_logged) {
 			char buffer[128];
@@ -183,7 +183,7 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	if (verbose)
 		printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
 
-	clm->client_fd_arr[clm->last_insert_idx++] = client_fd;
+	clm->client_fd_arr[clm->last_client_insert_idx++] = client_fd;
 	//pthread_mutex_unlock(&clm->lock);
 }
 	
