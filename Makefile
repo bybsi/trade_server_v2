@@ -14,5 +14,9 @@ cwtest: sse_client_writer.c sse_client_writer_test.c logger.c
 
 servertest: sse_client_writer.c logger.c sse_server.c sse_server_test.c
 	$(CCDBG) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c sse_server_test.c -o servertest
+
+httest: hashtable.c hashtable_test.c
+	$(CCDBG) $(LDFLAGS) hashtable.c hashtable_test.c -o httest
+
 clean:
-	rm -f dbtest cwtest servertest
+	rm -f dbtest cwtest servertest httest
