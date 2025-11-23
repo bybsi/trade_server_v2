@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <time.h>
 #include <pthread.h>
 #include "logger.h"
@@ -30,13 +31,23 @@ ST_LOGGER * logger_init(char *file_name) {
 	return logger;
 }
 
-void logger_write(ST_LOGGER *logger, char *message) {
+void logger_write(ST_LOGGER *logger, char *message, ...) {
 	pthread_mutex_lock(&logger->lock);
 	if (logger->fh) { 
+		va_list args;
 		time_t now;
 		time(&now);
 		fseek(logger->fh, 0, SEEK_END);
-		fprintf(logger->fh, "[%s]\t%s\n", strtok(ctime(&now), "\n"), message);
+		// Timestamp
+		fprintf(logger->fh, "[%s]\t", strtok(ctime(&now), "\n"));
+		// This allows us to call logger_write like calling
+		// fprintf()...
+		//      logger_write(logger, "%s%s", str1, str2);
+		va_start(args, message);
+		vfprintf(logger->fh, message, args);
+		va_end(args);
+
+		fprintf(logger->fh, "\n");
 		fflush(logger->fh);
 	}
 	pthread_mutex_unlock(&logger->lock);

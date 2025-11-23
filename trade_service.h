@@ -10,6 +10,9 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include "hiredis/hiredis.h"
+#include "logger.h"
+
 #define MAX_TICKERS 10
 #define MAX_ORDERS 25000
 #define TICKER_LENGTH 10
@@ -20,67 +23,57 @@
 
 // Order structure (13 bytes when packed)
 typedef struct st_order {
-    char ticker[TICKER_LENGTH];
-    double price;
-    int user_id;
+	char ticker[TICKER_LENGTH];
+	double price;
+	int user_id;
 } __attribute__((packed)) st_order;
 
 // Price point structure to store orders at a specific price
 typedef struct st_price_point {
-    double price;
-    st_order *orders;
-    size_t order_count;
-    size_t capacity;
+	double price;
+	st_order *orders;
+	size_t order_count;
+	size_t capacity;
 } st_price_point;
 
 // Order book structure for a single ticker
 typedef struct st_order_book {
-    st_price_point *buy_points;
-    st_price_point *sell_points;
-    size_t buy_count;
-    size_t sell_count;
-    size_t buy_capacity;
-    size_t sell_capacity;
-} st_order_book;
+	st_price_point *buy_points;
+	st_price_point *sell_points;
+	size_t buy_count;
+	size_t sell_count;
+	size_t buy_capacity;
+	size_t sell_capacity;
+} ST_ORDER_BOOK;
 
 // Main trade service structure
 typedef struct st_trade_service {
-    char *tickers[MAX_TICKERS];
-    size_t ticker_count;
-    
-    st_order_book *order_books;
-    FILE **price_sources;
-    FILE **buy_sources;
-    FILE **sell_sources;
-    
-    double *last_prices;
-    pthread_t monitor_thread;
-    int running;
-    
-    // Logging
-    FILE *log_file;
-    char *log_path;
-    int log_level;
-    
-    // Service info
-    char *name;
-    pid_t pid;
-    char *pid_file;
-} st_trade_service;
+	char *tickers[MAX_TICKERS];
+	size_t ticker_count;
+	
+	st_order_book *order_books;
+	FILE **price_sources;
+	
+	double *last_prices;
+	pthread_t monitor_thread;
 
-st_trade_service *trade_service_create(void);
+	int running;
+	// Logging
+	ST_LOGGER *sse_logger;
+
+	redisContext *redis;
+} ST_TRADE_SERVICE;
+
+ST_TRADE_SERVICE *trade_service_init(void);
 void trade_service_destroy(st_trade_service *service);
 int trade_service_start(st_trade_service *service);
 void trade_service_stop(st_trade_service *service);
 
 int init_service(st_trade_service *service);
-int init_logging(st_trade_service *service, const char *log_level);
 int load_price_sources(st_trade_service *service);
-int load_order_sources(st_trade_service *service);
 int process_fills(st_trade_service *service, const char *ticker, double current_price);
 void *market_monitor(void *arg);
 
-void log_message(st_trade_service *service, const char *level, const char *format, ...);
 double get_price_key(double price);
 
 #endif // _TRADE_SERVICE_H_

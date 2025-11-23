@@ -10,6 +10,7 @@
 
 typedef struct sse_server {
 	unsigned short port;
+	ST_LOGGER *logger;
 	ST_CLIENT_WRITER *client_writer;
 } ST_SSE_SERVER;
 

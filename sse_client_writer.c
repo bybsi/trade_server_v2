@@ -80,9 +80,7 @@ void *client_write_thread(void *clm) {
 				continue;
 
 			if (send_sse_event(clients[i], send_buffer) < 0) {
-				// TODO variable length arguments to logger_write like printf()
-				logger_write(logger, "Could not send SSE event:");
-				logger_write(logger, send_buffer);
+				logger_write(logger, "Could not send SSE event to client %d: %s", clients[i], send_buffer);
 				// close(clients[i]); // causes crash...
 				clients[i] = -1;
 			}
@@ -171,9 +169,9 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	if (clm->last_client_insert_idx == NUM_CLIENTS_PER_LIST) {
 		// log at capacity.
 		if (!capacity_logged) {
-			char buffer[128];
-			snprintf(buffer, 128, "Capacity reached for writer(%d)", clm->id);
-			logger_write(client_writer->logger, buffer);
+			logger_write(client_writer->logger, 
+				"Capacity reached for writer(%d)",
+				clm->id);
 			capacity_logged = 1;
 		}
 		return;

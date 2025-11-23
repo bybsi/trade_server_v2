@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
@@ -26,14 +25,6 @@ static int verbose = 0;
 volatile sig_atomic_t stop_signal_received = 0;
 void stop_server_handler(int signal) {
 	stop_signal_received = 1;
-}
-
-static ST_LOGGER *sse_logger = NULL;
-static void sse_log(char *message) {
-	if (!sse_logger) {
-		sse_logger = logger_init("sse_server.log");
-	}
-	logger_write(sse_logger, message);
 }
 
 static int make_socket_non_blocking(int sockfd) {
@@ -63,14 +54,14 @@ static int send_sse_headers(int client_fd) {
 
 static void sse_server_destroy(ST_SSE_SERVER *server) {
 	unsigned short i;
-	sse_log("sse_server_destroy called\n");
+	logger_write(server->logger, "sse_server_destroy called");
 	
 	client_writer_stop(server->client_writer);
 	client_writer_destroy(server->client_writer);
 	free(server->client_writer);
 	free(server);
 	
-	logger_close(sse_logger);
+	logger_close(server->logger);
 
 }
 
@@ -86,11 +77,11 @@ ST_SSE_SERVER * sse_server_init(
 		return NULL;
 	}
 	server->port = port;
+	server->logger = logger_init("sse_server.log");
 	return server;
 }
 
 void *server_thread (void *server_vp) {
-	char error_buffer[512];
 	int server_fd, epoll_fd, signal_fd, epoll_result;
 	sigset_t block_mask, old_mask;
 	struct sigaction sa;
@@ -181,7 +172,7 @@ void *server_thread (void *server_vp) {
 				// stop_signal_received should now be 1
 				continue;
 			} else {
-				sse_log("epoll_pwait error\n");
+				logger_write(server->logger, "epoll_pwait error");
 				break;
 			}
 		}
@@ -195,11 +186,9 @@ void *server_thread (void *server_vp) {
 				
 				if (client_fd < 0) {
 					if (errno != EAGAIN && errno != EWOULDBLOCK) {
-						snprintf(error_buffer,
-							sizeof(error_buffer),
+						logger_write(server->logger, 
 							"Error accepting connection errno: %d",
 							errno);
-						sse_log(error_buffer);
 					}
 					continue;
 				}
@@ -212,18 +201,18 @@ void *server_thread (void *server_vp) {
 				event.events = EPOLLIN | EPOLLET;
 				event.data.fd = client_fd;
 				if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) < 0) {
-					sse_log("epoll ctl add error");
+					logger_write(server->logger, "epoll ctl add error");
 					close(client_fd);
 					continue;
 				}
 
 				if (send_sse_headers(client_fd) < 0) {
-					sse_log("Failed to send SSE headers");
+					logger_write(server->logger, "Failed to send SSE headers");
 					close(client_fd);
 					continue;
 				}
 				
-				sse_log("Client connected");
+				logger_write(server->logger, "Client connected");
 				client_writer_add_client(server->client_writer, client_fd);
 			} else {
 				// Handle client data
@@ -233,13 +222,11 @@ void *server_thread (void *server_vp) {
 				ssize_t count = read(events[i].data.fd, buffer, sizeof(buffer));
 				if (count <= 0) {
 					if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-						snprintf(error_buffer,
-							sizeof(error_buffer),
+						logger_write(server->logger,
 							"Error reading client data: %d",
 							errno);
-						sse_log(error_buffer);
 					}
-					sse_log("Client disconnected");
+					logger_write(server->logger, "Client disconnected");
 					close(events[i].data.fd);
 					continue;
 				}
@@ -267,7 +254,7 @@ void sse_server_queue_data(ST_SSE_SERVER * server, char *data) {
 }
 
 void sse_server_stop(ST_SSE_SERVER *server) {
-	sse_log("sse_server_stop called");
+	logger_write(server->logger, "sse_server_stop called");
 	raise(SIGTERM);
 }
 

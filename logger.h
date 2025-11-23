@@ -9,7 +9,7 @@ typedef struct logger {
 } ST_LOGGER;
 
 ST_LOGGER * logger_init(char *file_name);
-void logger_write(ST_LOGGER *logger, char *message);
+void logger_write(ST_LOGGER *logger, char *message, ...);
 void logger_close(ST_LOGGER *logger);
 
 #endif // _LOGGER_H_

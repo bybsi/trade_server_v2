@@ -17,12 +17,12 @@ int main(int argc, char *argv[]) {
 	//printf("%lu\n", sizeof(data) / sizeof(data[0]));
 	cw = client_writer_init(10);
 
-	for (i = 1; i < 5; i++)
+	for (i = 100; i < 105; i++)
 		client_writer_add_client(cw, i);
 
 	client_writer_start(cw);
 
-	for (i = 5; i < 10; i++)
+	for (i = 105; i < 110; i++)
 		client_writer_add_client(cw, i);
 
 	for (i = 0; data[i]; i++) {
