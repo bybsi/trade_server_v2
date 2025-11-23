@@ -18,5 +18,8 @@ servertest: sse_client_writer.c logger.c sse_server.c sse_server_test.c
 httest: hashtable.c hashtable_test.c
 	$(CCDBG) $(LDFLAGS) hashtable.c hashtable_test.c -o httest
 
+redistest: redis_test.c
+	$(CCDBG) $(LDFALGS) redis_test.c -I/usr/local/include/hiredis -lhiredis -o redistest
+
 clean:
 	rm -f dbtest cwtest servertest httest
