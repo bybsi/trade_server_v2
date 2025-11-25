@@ -19,7 +19,10 @@ httest: hashtable.c hashtable_test.c
 	$(CCDBG) $(LDFLAGS) hashtable.c hashtable_test.c -o httest
 
 redistest: redis_test.c
-	$(CCDBG) $(LDFALGS) redis_test.c -I/usr/local/include/hiredis -lhiredis -o redistest
+	$(CCDBG) $(LDFLAGS) redis_test.c -I/usr/local/include/hiredis -lhiredis -o redistest
+
+rbtest: dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES)
+	$(CCDBG) $(LDFLAGS) dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES) -o rbtest $(WITH_MYSQL)
 
 clean:
 	rm -f dbtest cwtest servertest httest

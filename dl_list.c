@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "dl_list.h"
 DL_LIST *dl_list_init() {
 	DL_LIST *dl_list = malloc(sizeof(DL_LIST));
 	dl_list->head = dl_list_new_node(NULL, NULL);
@@ -20,7 +21,7 @@ DLL_NODE *dl_list_new_node(void *data, void (*data_callback)(void *data_node)) {
         // allocated to, such as putting a pointer to it in the
         // data object.
 	if (data_callback)
-		data_callback->(node);
+		data_callback(node);
 
 	return node;
 }

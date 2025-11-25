@@ -14,14 +14,15 @@
 // 	Free function
 // 	Currently only allows one instance...
 #include "dl_list.h"
-#include "rbt_tree.h"
+#include "rb_tree.h"
 
 // Global sentinel node for NIL (null) nodes
 RBT_NODE *NIL;
 
 RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
 	RBT_NODE *node = malloc(sizeof(RBT_NODE));
-	node->orders_list = dl_list_new_node(data, data_callback);
+	node->orders_list = dl_list_init();
+	dl_list_insert(node->orders_list, data, data_callback);
 	node->color = RED;
 	node->parent = NIL;
 	node->left = NIL;
@@ -133,9 +134,9 @@ void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data
 
 	new_node = NULL;
 	if (search == NIL) {
-		*root = rbt_new_node(key, data, data_callback);
-		*root->parent = search;
-		new_node = *root;
+		new_node = rbt_new_node(key, data, data_callback);
+		new_node->parent = search;
+		*root = new_node;
 	} else if (key == search->key) {
 		// inserting order with the same price
 		dl_list_insert(search->orders_list, data, data_callback);
@@ -160,7 +161,7 @@ RBT_NODE *rbt_find(RBT_NODE *root, double price) {
 void rbt_inorder(RBT_NODE *node) {
 	if (node != NIL) {
 		rbt_inorder(node->left);
-		printf("%d (%s) ", node->data, (node->color == RED ? "RED" : "BLACK"));
+		printf("%lld (%s) ", node->key, (node->color == RED ? "RED" : "BLACK"));
 		rbt_inorder(node->right);
 	}
 }
@@ -173,22 +174,4 @@ RBT_NODE * rbt_init() {
     NIL->parent = NULL;
     return NIL;
 }
-/*
-int main() {
 
-    RBT_NODE *root = rbt_init();
-
-    rbt_insert(&root, 10);
-    rbt_insert(&root, 20);
-    rbt_insert(&root, 30);
-    rbt_insert(&root, 15);
-    rbt_insert(&root, 25);
-
-    rbt_inorder(root);
-    printf("\n");
-
-    free(root);
-
-    return 0;
-}
-*/
