@@ -24,6 +24,6 @@ typedef struct tbl_trade_order {
 } ST_TBL_TRADE_ORDER;
 
 void * parse_tbl_trade_order(MYSQL_RES *result);
-
+void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to);
 
 #endif

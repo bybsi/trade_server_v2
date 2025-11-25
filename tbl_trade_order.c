@@ -50,3 +50,16 @@ void * parse_tbl_trade_order(MYSQL_RES *result) {
 	return (void*) head;
 }
 
+void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to) {
+	printf("%lu,%u,%s,%c,%c,%llu,%s,%s\n",
+		to->id,
+		to->user_id,
+		to->ticker,
+		to->side,
+		to->status,
+		to->price,
+		to->created_at,
+		to->filled_at);
+}
+
+
