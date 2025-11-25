@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <pthread.h>
 
-typedef struct lhm_node {
+typedef struct lhm_node_t {
 	char* key;
 	void* value;
 	lhm_node* next;	   // hash collision chain
@@ -12,7 +12,7 @@ typedef struct lhm_node {
 	lhm_node* list_next;
 } lhm_node;
 
-typedef struct lhmap {
+typedef struct lhmap_t {
 	// Num elements
 	size_t size;
 	// Max elements

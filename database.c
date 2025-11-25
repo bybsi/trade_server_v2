@@ -121,3 +121,43 @@ void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 	mysql_free_result(result);
 	return data;
 }
+
+void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
+	void *data;
+	char query_str[1024];
+	MYSQL_RES *result;
+
+	if (!mysql_conn) 
+		return NULL;
+
+	snprintf(query_str, 1024, "%s %s", database_query_str[tbl_type], sql);
+	if (mysql_query(mysql_conn, query_str) != 0) {
+		fprintf(stderr, "Query failed: %s\n", mysql_error(mysql_conn));
+		return NULL;
+	}
+
+	result = mysql_store_result(mysql_conn);
+	if (!result) {
+		fprintf(stderr, "Failed to store result: %s\n", mysql_error(mysql_conn));
+		return NULL;
+	}
+
+	// Convert the raw SQL string data into the struct representation
+	// of the database table.
+	data = tbl_map[tbl_type](result);
+
+	mysql_free_result(result);
+	return data;
+}
+
+char *db_timestamp(unsigned short subtract_weeks) {
+	time_t now;
+	//struct tm *time_info;
+	char *buffer = malloc(20);
+
+	time(&now);
+	// 7 * 24 * 60 * 60 = 179200
+	now -= (subtract_weeks * 179200);
+	strftime(buffer, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
+	return buffer;
+}

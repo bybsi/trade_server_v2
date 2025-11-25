@@ -61,6 +61,8 @@ typedef struct st_trade_service {
 	// Logging
 	ST_LOGGER *sse_logger;
 
+	time_t last_order_read_time;
+
 	redisContext *redis;
 } ST_TRADE_SERVICE;
 
@@ -69,11 +71,6 @@ void trade_service_destroy(st_trade_service *service);
 int trade_service_start(st_trade_service *service);
 void trade_service_stop(st_trade_service *service);
 
-int init_service(st_trade_service *service);
-int load_price_sources(st_trade_service *service);
-int process_fills(st_trade_service *service, const char *ticker, double current_price);
 void *market_monitor(void *arg);
-
-double get_price_key(double price);
 
 #endif // _TRADE_SERVICE_H_
