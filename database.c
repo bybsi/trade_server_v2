@@ -150,14 +150,12 @@ void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
 	return data;
 }
 
-char *db_timestamp(unsigned short subtract_weeks) {
+void db_timestamp(char *buffer, unsigned short subtract_weeks) {
 	time_t now;
 	//struct tm *time_info;
-	char *buffer = malloc(20);
 
 	time(&now);
 	// 7 * 24 * 60 * 60 = 179200
 	now -= (subtract_weeks * 179200);
 	strftime(buffer, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
-	return buffer;
 }

@@ -28,7 +28,7 @@ static char *database_query_str[] = {
 	"SELECT * FROM tbl_user_currency"
 };
 
-char *db_timestamp(unsigned short subtract_weeks);
+void db_timestamp(char *buffer, unsigned short subtract_weeks);
 void *db_fetch_data(DB_TBL_TYPE tbl_type);
 void *db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql);
 int db_execute_query(const char *query);

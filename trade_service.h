@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include "rb_tree.h"
 #include "hiredis/hiredis.h"
 #include "logger.h"
 
@@ -21,37 +22,30 @@
 #define BUY_IDX 0
 #define SELL_IDX 1
 
-// Order structure (13 bytes when packed)
-typedef struct st_order {
-	char ticker[TICKER_LENGTH];
-	double price;
-	int user_id;
-} __attribute__((packed)) st_order;
-
-// Price point structure to store orders at a specific price
-typedef struct st_price_point {
-	double price;
-	st_order *orders;
-	size_t order_count;
-	size_t capacity;
-} st_price_point;
-
 // Order book structure for a single ticker
 typedef struct st_order_book {
-	st_price_point *buy_points;
-	st_price_point *sell_points;
-	size_t buy_count;
-	size_t sell_count;
-	size_t buy_capacity;
-	size_t sell_capacity;
+	RBT_NODE *rbt_buy_orders;
+	RBT_NODE *rbt_sell_orders;
 } ST_ORDER_BOOK;
 
 // Main trade service structure
-typedef struct st_trade_service {
+typedef struct ST_TRADE_SERVICE {
 	char *tickers[MAX_TICKERS];
-	size_t ticker_count;
+	unsigned short ticker_count;
 	
-	st_order_book *order_books;
+	// Order books contain a buy and sell list which are
+	// red and black trees using price points for keys.
+	// Tree node data is a doubly linked list of orders
+	// at a given price point, ordered by priority,
+	// or the order they were placed.
+	// RBT_NODE -> DLL_NODE
+	ST_ORDER_BOOK *order_books;
+	// Quick access to cancel and delete orders
+	// Keys are the order id and data is a DLL_NODE
+	// that contains the order as it's data.
+	// RBT_NODE -> DLL_NODE -> ORDER
+	HASHTABLE *ht_orders;
+
 	FILE **price_sources;
 	
 	double *last_prices;
@@ -59,17 +53,17 @@ typedef struct st_trade_service {
 
 	int running;
 	// Logging
-	ST_LOGGER *sse_logger;
+	ST_LOGGER *logger;
 
-	time_t last_order_read_time;
+	char last_order_read_time[20];
 
 	redisContext *redis;
 } ST_TRADE_SERVICE;
 
 ST_TRADE_SERVICE *trade_service_init(void);
-void trade_service_destroy(st_trade_service *service);
-int trade_service_start(st_trade_service *service);
-void trade_service_stop(st_trade_service *service);
+void trade_service_destroy(ST_TRADE_SERVICE *service);
+int trade_service_start(ST_TRADE_SERVICE *service);
+void trade_service_stop(ST_TRADE_SERVICE *service);
 
 void *market_monitor(void *arg);
 

@@ -25,7 +25,7 @@ void rbt_set_test_print_func(void (*ptr) (void *)) {
 	test_print_func = ptr;
 }
 
-RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
+RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
 	RBT_NODE *node = malloc(sizeof(RBT_NODE));
 	node->orders_list = dl_list_init(test_print_func);
 	dl_list_insert(node->orders_list, data, data_callback);
@@ -120,7 +120,7 @@ static void fix_up(RBT_NODE **root, RBT_NODE *z) {
 	(*root)->color = BLACK;
 }
 
-void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
+void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
 //	RBT_NODE *new_node = rbt_new_node(key, data);
 	RBT_NODE *new_node;
 	RBT_NODE *search = NIL;

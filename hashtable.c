@@ -22,8 +22,8 @@ static size_t hash_function(const char* key, size_t capacity) {
 	return hash % capacity;
 }
 
-static ht_entry_t* create_entry(const char* key, void* value) {
-	ht_entry_t* entry = malloc(sizeof(ht_entry_t));
+static HT_ENTRY* create_entry(const char* key, void* value) {
+	HT_ENTRY* entry = malloc(sizeof(HT_ENTRY));
 	if (!entry) 
 		return NULL;
 
@@ -39,9 +39,9 @@ static ht_entry_t* create_entry(const char* key, void* value) {
 	return entry;
 }
 
-static int resize_hashtable(hashtable_t *ht, size_t new_capacity) {
+static int resize_hashtable(HASHTABLE *ht, size_t new_capacity) {
 	size_t i, new_index;
-	ht_entry_t** new_buckets = calloc(new_capacity, sizeof(ht_entry_t*));
+	HT_ENTRY** new_buckets = calloc(new_capacity, sizeof(HT_ENTRY*));
 	if (!new_buckets) 
 		return 0;
 
@@ -58,15 +58,15 @@ static int resize_hashtable(hashtable_t *ht, size_t new_capacity) {
 	return 1;
 }
 
-hashtable_t* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
+HASHTABLE* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
 	if (initial_capacity == 0) 
 		initial_capacity = INITIAL_CAPACITY;
 
-	hashtable_t* ht = malloc(sizeof(hashtable_t));
+	HASHTABLE* ht = malloc(sizeof(HASHTABLE));
 	if (!ht) 
 		return NULL;
 
-	ht->buckets = calloc(initial_capacity, sizeof(ht_entry_t*));
+	ht->buckets = calloc(initial_capacity, sizeof(HT_ENTRY*));
 	if (!ht->buckets) {
 		free(ht);
 		return NULL;
@@ -84,7 +84,7 @@ hashtable_t* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
 	return ht;
 }
 
-void ht_destroy(hashtable_t* ht) {
+void ht_destroy(HASHTABLE* ht) {
 	size_t i;
 	if (!ht) 
 		return;
@@ -108,41 +108,38 @@ void ht_destroy(hashtable_t* ht) {
 	free(ht);
 }
 
-int ht_put(hashtable_t* ht, const char* key, void* value) {
+HT_ENTRY * ht_put(HASHTABLE* ht, const char* key, void* value) {
 	if (!ht || !key) 
-		return 0;
+		return NULL;
 
 	pthread_mutex_lock(&ht->lock);
 
 	if ((float)(ht->size + 1) / ht->capacity > RESIZE_THRESHOLD) {
 		if (!resize_hashtable(ht, ht->capacity * 2)) {
 			pthread_mutex_unlock(&ht->lock);
-			return 0;
+			return NULL;
 		}
 	}
 
 	size_t index = hash_function(key, ht->capacity);
 	// TODO this is just ht_get;
-	ht_entry_t* entry = ht->buckets[index];
+	HT_ENTRY* entry = ht->buckets[index];
 
 	while (entry) {
-		// We need to allow duplicate keys right?
-	// price 1000.58, 1000.48 for example
-	// or price 1000 quantity 123, price 1000 quantity 22.
 		if (strcmp(entry->key, key) == 0) {
 			if (ht->free_func) 
 				ht->free_func(entry->value);
 			entry->value = value;
 			pthread_mutex_unlock(&ht->lock);
-			return 1;
+			return entry;
 		}
 		entry = entry->next;
 	}
 
-	ht_entry_t* new_entry = create_entry(key, value);
+	HT_ENTRY* new_entry = create_entry(key, value);
 	if (!new_entry) {
 		pthread_mutex_unlock(&ht->lock);
-		return 0;
+		return NULL;
 	}
 
 	new_entry->next = ht->buckets[index];
@@ -150,17 +147,17 @@ int ht_put(hashtable_t* ht, const char* key, void* value) {
 
 	ht->size++;
 	pthread_mutex_unlock(&ht->lock);
-	return 1;
+	return new_entry;
 }
 
-void* ht_get(hashtable_t* ht, const char* key) {
+void* ht_get(HASHTABLE* ht, const char* key) {
 	if (!ht || !key) 
 		return NULL;
 
 	pthread_mutex_lock(&ht->lock);
 	
 	size_t index = hash_function(key, ht->capacity);
-	ht_entry_t* entry = ht->buckets[index];
+	HT_ENTRY* entry = ht->buckets[index];
 	void* result = NULL;
 
 	while (entry) {
@@ -175,15 +172,15 @@ void* ht_get(hashtable_t* ht, const char* key) {
 	return result;
 }
 
-void* ht_remove(hashtable_t* ht, const char* key) {
+void* ht_remove(HASHTABLE* ht, const char* key) {
 	if (!ht || !key) 
 		return NULL;
 
 	pthread_mutex_lock(&ht->lock);
 
 	size_t index = hash_function(key, ht->capacity);
-	ht_entry_t* entry = ht->buckets[index];
-	ht_entry_t* prev = NULL;
+	HT_ENTRY* entry = ht->buckets[index];
+	HT_ENTRY* prev = NULL;
 	void* result = NULL;
 
 	while (entry) {
