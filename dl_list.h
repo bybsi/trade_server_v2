@@ -11,10 +11,11 @@ typedef struct dl_list_t {
 	DLL_NODE *head;
 	DLL_NODE *tail;
 	DLL_NODE *iter;
+	void (*print_func) (void *);
 } DL_LIST;
 
 
-DL_LIST *dl_list_init();
+DL_LIST *dl_list_init(void (*print_func) (void *));
 DLL_NODE *dl_list_new_node(void *data, void (*data_callback)(void *data_node));
 void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback)(void *data_node));
 

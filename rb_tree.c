@@ -16,13 +16,20 @@
 #include "dl_list.h"
 #include "rb_tree.h"
 
+static int verbose = 0;
 // Global sentinel node for NIL (null) nodes
 RBT_NODE *NIL;
 
+void (*test_print_func) (void *) = NULL;
+void rbt_set_test_print_func(void (*ptr) (void *)) {
+	test_print_func = ptr;
+}
+
 RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
 	RBT_NODE *node = malloc(sizeof(RBT_NODE));
-	node->orders_list = dl_list_init();
+	node->orders_list = dl_list_init(test_print_func);
 	dl_list_insert(node->orders_list, data, data_callback);
+	node->key = key;
 	node->color = RED;
 	node->parent = NIL;
 	node->left = NIL;
@@ -120,6 +127,8 @@ void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data
 	RBT_NODE *current = *root;
 
 	while (current != NIL) {
+		if (verbose)
+			printf("current != NIL (%llu == %llu)\n", key, current->key);
 		search = current;
 		if (key == current->key) {
 			// append to DLL at x->data
@@ -134,17 +143,25 @@ void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data
 
 	new_node = NULL;
 	if (search == NIL) {
+		if (verbose)
+			printf("Creating new node at key: %llu\n", key);
 		new_node = rbt_new_node(key, data, data_callback);
 		new_node->parent = search;
 		*root = new_node;
 	} else if (key == search->key) {
 		// inserting order with the same price
+		if (verbose)
+			printf("Updating node at key: %llu\n", key);
 		dl_list_insert(search->orders_list, data, data_callback);
 	} else if (key < search->key) {
+		if (verbose)
+			printf("Creating new node (left) at key: %llu\n", key);
 		search->left = rbt_new_node(key, data, data_callback);
 		search->left->parent = search;
 		new_node = search->left;
 	} else {
+		if (verbose)
+			printf("Creating new node (right) at key: %llu\n", key);
 		search->right = rbt_new_node(key, data, data_callback);
 		search->right->parent = search;
 		new_node = search->right;
@@ -160,8 +177,16 @@ RBT_NODE *rbt_find(RBT_NODE *root, double price) {
 
 void rbt_inorder(RBT_NODE *node) {
 	if (node != NIL) {
+		DLL_NODE *current; 
 		rbt_inorder(node->left);
-		printf("%lld (%s) ", node->key, (node->color == RED ? "RED" : "BLACK"));
+
+		printf("\t%llu (%s)\n", node->key, (node->color == RED ? "RED" : "BLACK"));
+		current = node->orders_list->head;
+		while (current) {
+			if (current->data)
+				node->orders_list->print_func(current->data);
+			current = current->next;
+		}
 		rbt_inorder(node->right);
 	}
 }

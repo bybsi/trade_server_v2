@@ -3,11 +3,12 @@
 #include <string.h>
 
 #include "dl_list.h"
-DL_LIST *dl_list_init() {
+DL_LIST *dl_list_init(void (*print_func) (void*)) {
 	DL_LIST *dl_list = malloc(sizeof(DL_LIST));
 	dl_list->head = dl_list_new_node(NULL, NULL);
 	dl_list->tail = dl_list->head;
 	dl_list->iter = dl_list->head;
+	dl_list->print_func = print_func;
 	return dl_list;
 }
 

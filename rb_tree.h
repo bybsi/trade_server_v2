@@ -17,5 +17,6 @@ typedef struct rbt_node_t {
 void rbt_inorder(RBT_NODE *node);
 void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node));
 RBT_NODE *rbt_init();
+void rbt_set_test_print_func(void (*ptr) (void *));
 
 #endif // _RB_TREE_H_
