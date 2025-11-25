@@ -3,16 +3,17 @@
 
 typedef enum { RED, BLACK } Color;
 
-typedef struct rb_node_t {
-	int data;
+typedef struct rbt_node_t {
+	unsigned long long key;
+	DLL_NODE *orders_list;
 	Color color;
-	struct rb_node_t *parent;
-	struct rb_node_t *left;
-	struct rb_node_t *right;
-} RB_NODE;
+	struct rbt_node_t *parent;
+	struct rbt_node_t *left;
+	struct rbt_node_t *right;
+} RBT_NODE;
 
-void rb_inorder(RB_NODE *node);
-void rb_insert(RB_NODE **root, int data);
-RB_NODE *rb_init();
+void rbt_inorder(RBT_NODE *node);
+void rbt_insert(RBT_NODE **root, unsigned long long key, void *data) {
+RBT_NODE *rbt_init();
 
 #endif // _RB_TREE_H_

@@ -1,18 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/**
+ Red and black tree customized for use with trade service.
+ Keys are price points, data is a doubly linked list of
+ market orders, ordered by time. A reference to each order
+ node is kept in a hashtable for O(1) access in the event of
+ cancellation.
+ */
+
 // TODO:
 //	Comparator
 // 	Free function
 // 	Currently only allows one instance...
-#include "rb_tree.h"
+#include "dl_list.h"
+#include "rbt_tree.h"
 
 // Global sentinel node for NIL (null) nodes
-RB_NODE *NIL;
+RBT_NODE *NIL;
 
-RB_NODE *new_rb_node(int data) {
-	RB_NODE *node = (RB_NODE *)malloc(sizeof(RB_NODE));
-	node->data = data;
+RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
+	RBT_NODE *node = malloc(sizeof(RBT_NODE));
+	node->orders_list = dl_list_new_node(data, data_callback);
 	node->color = RED;
 	node->parent = NIL;
 	node->left = NIL;
@@ -20,8 +29,8 @@ RB_NODE *new_rb_node(int data) {
 	return node;
 }
 
-static void rotate_left(RB_NODE **root, RB_NODE *x) {
-	RB_NODE *y = x->right;
+static void rotate_left(RBT_NODE **root, RBT_NODE *x) {
+	RBT_NODE *y = x->right;
 	x->right = y->left;
 	if (y->left != NIL) {
 		y->left->parent = x;
@@ -38,8 +47,8 @@ static void rotate_left(RB_NODE **root, RB_NODE *x) {
 	x->parent = y;
 }
 
-static void rotate_right(RB_NODE **root, RB_NODE *y) {
-	RB_NODE *x = y->left;
+static void rotate_right(RBT_NODE **root, RBT_NODE *y) {
+	RBT_NODE *x = y->left;
 	y->left = x->right;
 	if (x->right != NIL) {
 		x->right->parent = y;
@@ -57,10 +66,10 @@ static void rotate_right(RB_NODE **root, RB_NODE *y) {
 }
 
 // Function to fix Red-Black Tree properties after insertion
-static void fix_up(RB_NODE **root, RB_NODE *z) {
+static void fix_up(RBT_NODE **root, RBT_NODE *z) {
 	while (z->parent->color == RED) {
 		if (z->parent == z->parent->parent->left) {
-			RB_NODE *uncle = z->parent->parent->right;
+			RBT_NODE *uncle = z->parent->parent->right;
 			if (uncle->color == RED) {
 				// Uncle is red
 				z->parent->color = BLACK;
@@ -80,7 +89,7 @@ static void fix_up(RB_NODE **root, RB_NODE *z) {
 			}
 		} else {
 			// Symmetric cases for when parent is right child
-			RB_NODE *uncle = z->parent->parent->left;
+			RBT_NODE *uncle = z->parent->parent->left;
 			if (uncle->color == RED) {
 				// Uncle is red
 				z->parent->color = BLACK;
@@ -103,43 +112,61 @@ static void fix_up(RB_NODE **root, RB_NODE *z) {
 	(*root)->color = BLACK;
 }
 
-void rb_insert(RB_NODE **root, int data) {
-	RB_NODE *new_node = new_rb_node(data);
-	RB_NODE *y = NIL;
-	RB_NODE *x = *root;
+void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node)) {
+//	RBT_NODE *new_node = rbt_new_node(key, data);
+	RBT_NODE *new_node;
+	RBT_NODE *search = NIL;
+	RBT_NODE *current = *root;
 
-	while (x != NIL) {
-		y = x;
-		// TODO comparator
-		if (new_node->data < x->data) {
-			x = x->left;
+	while (current != NIL) {
+		search = current;
+		if (key == current->key) {
+			// append to DLL at x->data
+			break;
+		} else if (key < current->key) {
+			current = current->left;
 		} else {
-			x = x->right;
+			current = current->right;
 		}
 	}
-	new_node->parent = y;
-	if (y == NIL) {
-		*root = new_node;
-		// TODO Comparator
-	} else if (new_node->data < y->data) {
-		y->left = new_node;
+//	new_node->parent = search;
+
+	new_node = NULL;
+	if (search == NIL) {
+		*root = rbt_new_node(key, data, data_callback);
+		*root->parent = search;
+		new_node = *root;
+	} else if (key == search->key) {
+		// inserting order with the same price
+		dl_list_insert(search->orders_list, data, data_callback);
+	} else if (key < search->key) {
+		search->left = rbt_new_node(key, data, data_callback);
+		search->left->parent = search;
+		new_node = search->left;
 	} else {
-		y->right = new_node;
+		search->right = rbt_new_node(key, data, data_callback);
+		search->right->parent = search;
+		new_node = search->right;
 	}
 
-	fix_up(root, new_node);
+	if (new_node)
+		fix_up(root, new_node);
 }
 
-void rb_inorder(RB_NODE *node) {
+RBT_NODE *rbt_find(RBT_NODE *root, double price) {
+	
+}
+
+void rbt_inorder(RBT_NODE *node) {
 	if (node != NIL) {
-		rb_inorder(node->left);
+		rbt_inorder(node->left);
 		printf("%d (%s) ", node->data, (node->color == RED ? "RED" : "BLACK"));
-		rb_inorder(node->right);
+		rbt_inorder(node->right);
 	}
 }
 
-RB_NODE * rb_init() {
-    NIL = (RB_NODE *)malloc(sizeof(RB_NODE));
+RBT_NODE * rbt_init() {
+    NIL = (RBT_NODE *)malloc(sizeof(RBT_NODE));
     NIL->color = BLACK;
     NIL->left = NULL;
     NIL->right = NULL;
@@ -149,15 +176,15 @@ RB_NODE * rb_init() {
 /*
 int main() {
 
-    RB_NODE *root = rb_init();
+    RBT_NODE *root = rbt_init();
 
-    rb_insert(&root, 10);
-    rb_insert(&root, 20);
-    rb_insert(&root, 30);
-    rb_insert(&root, 15);
-    rb_insert(&root, 25);
+    rbt_insert(&root, 10);
+    rbt_insert(&root, 20);
+    rbt_insert(&root, 30);
+    rbt_insert(&root, 15);
+    rbt_insert(&root, 25);
 
-    rb_inorder(root);
+    rbt_inorder(root);
     printf("\n");
 
     free(root);
