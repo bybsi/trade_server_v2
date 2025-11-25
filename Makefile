@@ -39,4 +39,4 @@ tradeservice: database.c dl_list.c hashtable.c logger.c \
 	$(WITH_REDIS)
 
 clean:
-	rm -f dbtest cwtest servertest httest redistest rbtest servicetest
+	rm -f dbtest cwtest servertest httest redistest rbtest servicetest tradeservice
