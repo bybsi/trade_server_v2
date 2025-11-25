@@ -23,11 +23,13 @@ int main() {
 	void *data;
 	ST_TBL_TRADE_ORDER *to;
 	RBT_NODE *root;
+	RBT_NODE *root1;
 
 	if (!db_init())
 		exit(255);
 
 	root = rbt_init();
+	root1 = rbt_init();
 	rbt_set_test_print_func(&pf);
 
 	data = db_fetch_data(TBL_TRADE_ORDER);
@@ -36,10 +38,13 @@ int main() {
 	while (to) {
 		print_tbl_trade_order(to);
 		rbt_insert(&root, to->price, to, NULL);
+		rbt_insert(&root1, to->price + 10, to, NULL);
 		to = to->next;
 	}
 
 	rbt_inorder(root);
+	printf("\n\n");
+	rbt_inorder(root1);
 	return 0;
 }
 

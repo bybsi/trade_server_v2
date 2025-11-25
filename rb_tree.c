@@ -18,7 +18,7 @@
 
 static int verbose = 0;
 // Global sentinel node for NIL (null) nodes
-RBT_NODE *NIL;
+RBT_NODE *NIL = NULL;
 
 void (*test_print_func) (void *) = NULL;
 void rbt_set_test_print_func(void (*ptr) (void *)) {
@@ -192,11 +192,13 @@ void rbt_inorder(RBT_NODE *node) {
 }
 
 RBT_NODE * rbt_init() {
-    NIL = (RBT_NODE *)malloc(sizeof(RBT_NODE));
-    NIL->color = BLACK;
-    NIL->left = NULL;
-    NIL->right = NULL;
-    NIL->parent = NULL;
-    return NIL;
+	if (!NIL) {
+		NIL = (RBT_NODE *)malloc(sizeof(RBT_NODE));
+		NIL->color = BLACK;
+		NIL->left = NULL;
+		NIL->right = NULL;
+		NIL->parent = NULL;
+	}
+	return NIL;
 }
 
