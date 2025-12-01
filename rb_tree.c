@@ -171,11 +171,71 @@ void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data
 		fix_up(root, new_node);
 }
 
-RBT_NODE *rbt_find(RBT_NODE *root, double price) {
-	
+RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key) {
+	if (!node)
+		return NULL;
+
+	if (node->key == key)
+		return node;
+
+	if (key < node->key) {
+		if (!node->left)
+			return node;
+		return rbt_find_nearest(node->left, key);
+	} else {
+		if (!node->right)
+			return node;
+		return rbt_find_nearest(node->right, key);
+	}
 }
 
+void rbt_visit_nodes_in_range(RBT_NODE *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *)) {
+	// TODO use morris traversal
+	if (!node)
+		return;
+	
+	if (node->key > low_key)
+		rbt_visit_nodes_in_range(node->left, low_key, high_key, visitor);
+	if (node->key >= low_key && node->key <= high_key)
+		visitor(node->orders_list);
+	if (node->key < high_key)
+		rbt_visit_nodes_in_range(node->right, low_key, high_key, visitor);
+}
+/*
+def morris_inorder(root):
+	current = root
+	while current:
+		if not current.left:
+			visit
+			current = current.right
+		else:
+			pred = current.left
+			while pred.right is not None and pred.right != current:
+				pred = pred.right
+
+			if pred.right is None:
+				pred.right = current
+				cur = cur.right
+			else:
+				pred.right =  None
+				visit
+				cur = cur.right
+
+def flatten(root):
+	current = root
+	while current is not None:
+		if current.left:
+			pred = current.left
+			while pred.right is not None:
+				pred = pred.right
+
+			pred.right = current.right
+			current.right = current.left
+			current.left = None
+		current = current.right
+*/
 void rbt_inorder(RBT_NODE *node) {
+	// TODO use morris traversal
 	if (node != NIL) {
 		DLL_NODE *current; 
 		rbt_inorder(node->left);

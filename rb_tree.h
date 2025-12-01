@@ -14,6 +14,10 @@ typedef struct rbt_node_t {
 	struct rbt_node_t *right;
 } RBT_NODE;
 
+RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key);
+//
+void rbt_visit_nodes_in_range(RBT_NODE *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *));
+//
 void rbt_inorder(RBT_NODE *node);
 void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node));
 RBT_NODE *rbt_init();
