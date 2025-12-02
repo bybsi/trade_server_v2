@@ -25,8 +25,15 @@ redistest: redis_test.c
 rbtest: dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES)
 	$(CCDBG) $(LDFLAGS) dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES) -o rbtest $(WITH_MYSQL)
 
-servicetest: hashtable.c dl_list.c rb_tree.c trade_service_test.c database.c $(DBTABLES)
-	$(CCDBG) $(LDFLAGS) hashtable.c dl_list.c rb_tree.c trade_service_test.c database.c $(DBTABLES) -o servicetest $(WITH_MYSQL)
+servicetest: database.c dl_list.c hashtable.c logger.c \
+		rb_tree.c sse_client_writer.c sse_server.c \
+		trade_service.c trade_service_test.c $(DBTABLES)
+	$(CCDBG) $(LDFLAGS) database.c dl_list.c hashtable.c \
+	logger.c rb_tree.c sse_client_writer.c sse_server.c \
+	trade_service.c trade_service_test.c $(DBTABLES) \
+	-o servicetest \
+	$(WITH_MYSQL) \
+	$(WITH_REDIS)
 
 tradeservice: database.c dl_list.c hashtable.c logger.c \
 		rb_tree.c sse_client_writer.c sse_server.c \
