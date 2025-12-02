@@ -90,7 +90,7 @@ static redisReply * redis_lrange(redisContext *redis, char *args) {
 
         reply = redisCommand(redis, cmd);
 	if (reply->type != REDIS_REPLY_ARRAY) {
-		fprintf(stderr, "Error: unexpected redis return type\n");
+		fprintf(stderr, "Error: Unexpected redis return type.\n");
 	} else if (reply->type == REDIS_REPLY_ERROR) {
 		fprintf(stderr, "Error: redis_lrange\n");
 	}
@@ -102,30 +102,39 @@ static redisContext * redis_init() {
 
         if (!redis || redis->err) {
                 if (redis) {
-                        printf("Error: %s\n", redis->errstr);
+                        fprintf(stderr, "Error: %s\n", redis->errstr);
 			redisFree(redis);
 			redis = NULL;
 		}
                 else
-                        printf("Can't allocate redis context.");
+                        fprintf(stderr, "Can't allocate redis context.\n");
         }
 
 	return redis;
 }
 
 // This key is not used in SSE, however it can be used for other features.
-static void update_redis_price(redisContext *redis, unsigned short ticker_idx, ST_PRICE_POINT *pp) {
+static void update_redis_ticker_price(redisContext *redis, unsigned short ticker_idx, ST_PRICE_POINT *pp) {
+
 	char cmd[128];
 	snprintf(cmd, 128, "set %s-price_v2 %.6f:%d", tickers[ticker_idx], (double)(pp->price/100), pp->flag);
 	redis_cmd(redis, cmd);
 }
 
+/**
+* Opens a file handle to each tickers price data.
+*
+* Price data files are binary where each price is packed to 5 bytes
+* [float][byte]
+* 4 bytes: price
+* 1 byte:  candle flag (OPEN|CLOSE|LOW|HIGH) <-- TODO: needs a rework
+*/
 static int load_price_sources(ST_TRADE_SERVICE *service) {
 	for (size_t i = 0; i < service->ticker_count; i++) {
 		char filepath[256];
+		/* /var/data/filename */
 		snprintf(filepath, sizeof(filepath), "%s/%s0.points.10s", 
 				DATA_DIR, tickers[i]);
-		
 		service->price_sources[i] = fopen(filepath, "rb");
 		if (!service->price_sources[i]) {
 			logger_write(service->logger, "Failed to open price file: %s", filepath);
@@ -135,30 +144,34 @@ static int load_price_sources(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
-//static ST_PRICE_POINT * read_price_source(FILE *fh) {
+/**
+* Reads the next price from a tickers price source file and places
+* the data into ST_PRICE_POINT *price_point.
+* If there is an error the price_point will have a price of 0.
+*/
 static void read_price_source(FILE *fh, ST_PRICE_POINT *price_point) {
 	float price;
 	unsigned char flag_byte;
-//	ST_PRICE_POINT *pp = malloc(sizeof(ST_PRICE_POINT));
+	
 	price_point->price = 0;
 	if (fread(&price, sizeof(float), 1, fh) != 1) {
 		fprintf(stderr, "Couldn't read price from price source.\n");
 		return;
-//		free(pp);
-//		return NULL;
 	}
 	price_point->price = (unsigned long long) (price * 100);
 	price_point->flag = 0;
 	if (fread(&flag_byte, 1, 1, fh) != 1) {
+		price_point->price = 0;
 		fprintf(stderr, "Couldn't read flag_byte from price source.\n");
 		return;
-//		free(pp);
-//		return NULL;
 	}
 	price_point->flag = flag_byte;
-//	return pp;
 }
 
+/**
+* Finishes initializing the trade service after
+* trade_service_start has been called.
+*/
 static int init_service(ST_TRADE_SERVICE *service) {
 	if (!db_init())
 		return 0;
@@ -179,6 +192,12 @@ static int init_service(ST_TRADE_SERVICE *service) {
 
 #define BUY_ORDER_ID_PREFIX "b"
 #define SELL_ORDER_ID_PREFIX "s"
+/**
+* Callback function which is used to map a hashtable node
+* to its associated DL_LIST *node.
+* This gives the order, and us, access to the surrounding data structure if
+* it is accessed using a hashtable lookup, for example if it's cancelled.
+*/
 void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 	((HT_ENTRY *)ht_node)->ref = dll_node;
 }
@@ -482,7 +501,7 @@ void *market_monitor(void *arg) {
 					tickers[ticker_idx]);
 				continue;
 			}
-			update_redis_price(service->redis, ticker_idx, &current_price);
+			update_redis_ticker_price(service->redis, ticker_idx, &current_price);
 			process_fills(service, ticker_idx, current_price.price);
 			service->last_prices[ticker_idx].price = current_price.price;
 			service->last_prices[ticker_idx].flag = current_price.flag;
