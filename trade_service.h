@@ -10,7 +10,9 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include "database.h"
 #include "rb_tree.h"
+#include "hashtable.h"
 #include "hiredis/hiredis.h"
 #include "logger.h"
 
@@ -28,9 +30,13 @@ typedef struct st_order_book {
 	RBT_NODE *rbt_sell_orders;
 } ST_ORDER_BOOK;
 
+typedef struct st_price_point {
+	unsigned long long price;
+	int flag;
+} ST_PRICE_POINT;
+
 // Main trade service structure
 typedef struct ST_TRADE_SERVICE {
-	char *tickers[MAX_TICKERS];
 	unsigned short ticker_count;
 	
 	// Order books contain a buy and sell list which are
@@ -47,15 +53,16 @@ typedef struct ST_TRADE_SERVICE {
 	HASHTABLE *ht_orders;
 
 	FILE **price_sources;
-	
-	double *last_prices;
+	ST_PRICE_POINT *last_prices;
+
 	pthread_t monitor_thread;
 
 	int running;
+	unsigned int datapoint_count;
 	// Logging
 	ST_LOGGER *logger;
 
-	char last_order_read_time[20];
+	char last_order_read_time[TIMESTAMP_LEN];
 
 	redisContext *redis;
 } ST_TRADE_SERVICE;

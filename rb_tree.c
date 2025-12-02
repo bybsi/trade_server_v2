@@ -251,6 +251,9 @@ void rbt_inorder(RBT_NODE *node) {
 	}
 }
 
+// TODO destroy function
+// TODO delete function
+
 RBT_NODE * rbt_init() {
 	if (!NIL) {
 		NIL = (RBT_NODE *)malloc(sizeof(RBT_NODE));

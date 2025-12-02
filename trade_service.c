@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <pthread.h>
+#include <ctype.h>
 
 #include "hashtable.h"
 #include "rb_tree.h"
@@ -48,8 +49,13 @@ static unsigned short load_orders_helper(
 	char side, char *order_by, unsigned short ticker_id, 
 	HASHTABLE *ht_orders, RBT_NODE **rbt_orders, 
 	char *last_order_read_time, char *id_prefix);
-static double get_price_key(double price);
-static int process_fills(ST_TRADE_SERVICE *service, const char *ticker, double current_price);
+static void process_fills(ST_TRADE_SERVICE *service, 
+	unsigned short ticker, unsigned long long current_price);
+
+static void strtolower(char *str) {
+	for (unsigned short i = 0; *str; i++)
+		str[i] = tolower(str[i]);
+}
 
 static char * redis_get(redisContext *redis, char *key) {
 	redisReply *reply;
@@ -107,6 +113,13 @@ static redisContext * redis_init() {
 	return redis;
 }
 
+// This key is not used in SSE, however it can be used for other features.
+static void update_redis_price(redisContext *redis, unsigned short ticker_idx, ST_PRICE_POINT *pp) {
+	char cmd[128];
+	snprintf(cmd, 128, "set %s-price_v2 %.6f:%d", tickers[ticker_idx], (double)(pp->price/100), pp->flag);
+	redis_cmd(redis, cmd);
+}
+
 static int load_price_sources(ST_TRADE_SERVICE *service) {
 	for (size_t i = 0; i < service->ticker_count; i++) {
 		char filepath[256];
@@ -122,13 +135,32 @@ static int load_price_sources(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
+//static ST_PRICE_POINT * read_price_source(FILE *fh) {
+static void read_price_source(FILE *fh, ST_PRICE_POINT *price_point) {
+	float price;
+	unsigned char flag_byte;
+//	ST_PRICE_POINT *pp = malloc(sizeof(ST_PRICE_POINT));
+	price_point->price = 0;
+	if (fread(&price, sizeof(float), 1, fh) != 1) {
+		fprintf(stderr, "Couldn't read price from price source.\n");
+		return;
+//		free(pp);
+//		return NULL;
+	}
+	price_point->price = (unsigned long long) (price * 100);
+	price_point->flag = 0;
+	if (fread(&flag_byte, 1, 1, fh) != 1) {
+		fprintf(stderr, "Couldn't read flag_byte from price source.\n");
+		return;
+//		free(pp);
+//		return NULL;
+	}
+	price_point->flag = flag_byte;
+//	return pp;
+}
 
 static int init_service(ST_TRADE_SERVICE *service) {
 	if (!db_init())
-		return 0;
-
-	service->logger = logger_init("trade_service.log");
-	if (!service->logger)
 		return 0;
 
 	service->redis = redis_init();
@@ -245,35 +277,126 @@ static unsigned short load_orders(ST_TRADE_SERVICE *service) {
 	return result;
 }
 
-static double get_price_key(double price) {
-	return 0.0;
-} 
+// TODO add logging .... hmm
+void fill_order(ST_TBL_TRADE_ORDER *order) {
+	char sql[1024];
+	char ticker[TICKER_LEN];
+	
+	// TODO run these in the same transaction as both need to succeed.
+	db_timestamp(order->filled_at, 0);
+	order->status = 'F';
 
-static int process_fills(ST_TRADE_SERVICE *service, const char *ticker, double current_price) {
-	return 1;
+	snprintf(sql, 1024, "UPDATE %s SET status='%c' filled_at='%s' WHERE id=%lu",
+		database_tbl_names[TBL_TRADE_ORDER], 
+		order->status, order->filled_at, order->id);
+	if (db_execute_query(sql) == -1) {
+		fprintf(stderr, "Unable to fill order: %lu for user: %u\n", 
+			order->id, order->user_id);
+		//logger_write(service->logger, "Unable to fill order: %lu", order->id);
+		return;
+	}
+
+	snprintf(ticker, TICKER_LEN, "%s", order->ticker);
+	strtolower(ticker);
+	if (order->side == 'B')
+		snprintf(sql, 1024, "UPDATE %s SET %s=%s + %u WHERE user_id=%u", 
+			database_tbl_names[TBL_USER_CURRENCY], 
+			ticker, ticker, order->amount, order->user_id);
+	else
+		snprintf(sql, 1024, "UPDATE %s SET bybs=bybs + (%llu * %u) WHERE user_id=%u",
+			database_tbl_names[TBL_USER_CURRENCY],
+			order->price, order->amount, order->user_id);
+	if (db_execute_query(sql) == -1) {
+		fprintf(stderr, 
+			"Unable to update user wallet: order_id:%lu, user_id:%u\n", 
+			order->id, order->user_id);
+		//logger_write(service->logger, "Unable to fill order: %lu", order->id);
+		return;
+	}
+}
+
+// TODO add logging .... hmm
+void order_visitor(void *data) {
+	DL_LIST *order_list;
+	DLL_NODE *current_node;
+	HT_ENTRY *ht_entry;
+	ST_TBL_TRADE_ORDER *order;
+
+	order_list = (DL_LIST *) data;
+	current_node = order_list->head->next;
+
+	while (current_node) {
+		order = (ST_TBL_TRADE_ORDER *)((HT_ENTRY *) current_node->data)->value;
+
+		printf("Filling order: %ld\n", order->id);
+		// TODO delete from HT and DL_LIST
+		fill_order(order);
+
+		current_node = current_node->next;
+	}
+}
+
+// TODO fill in last_prices[ticker] before execuing this loop so
+// we don't have to check if it's set.
+static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsigned long long current_price) {
+	unsigned long long low_price, high_price;
+	if (current_price > service->last_prices[ticker].price) {
+		high_price = current_price;
+		low_price = service->last_prices[ticker].price;
+	} else {
+		high_price = service->last_prices[ticker].price;
+		low_price = current_price;
+	}
+	printf("Checking orders between: %lld and %lld\n", low_price, high_price);
+	rbt_visit_nodes_in_range(
+		service->order_books[ticker].rbt_buy_orders,
+		low_price, // low node key
+		high_price, // high  node key
+		&order_visitor);
+	rbt_visit_nodes_in_range(
+		service->order_books[ticker].rbt_sell_orders,
+		low_price,
+		high_price,
+		&order_visitor);
 }
 
 
-ST_TRADE_SERVICE *trade_service_create(void) {
+ST_TRADE_SERVICE *trade_service_init(void) {
 	unsigned short i;
 
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
 	if (!service) 
-		return NULL;
+		return NULL; // TODO memory error DEFINE
 
 	service->ticker_count = sizeof(tickers) / sizeof(tickers[0]) - 1;
-	fprintf(stderr, "%d", service->ticker_count);
 
+	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
 	service->order_books = calloc(service->ticker_count, sizeof(ST_ORDER_BOOK));
+	if (!service->order_books)
+		return NULL; // TODO memory error DEFINE
+	
+	service->last_prices = calloc(service->ticker_count, sizeof(ST_PRICE_POINT));
+	if (!service->last_prices)
+		return NULL; // TODO memory error DEFINE
+	
 	for (i = 0; i < service->ticker_count; i++) {
-		// Initialize datastructures to handle orders
+		// Initialize data structures to handle orders
 		service->order_books[i].rbt_buy_orders = rbt_init();
 		service->order_books[i].rbt_sell_orders = rbt_init();
-		service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
+
+		service->last_prices[i].price = 0;
+		service->last_prices[i].flag = 0;
 	}
 	service->price_sources = calloc(service->ticker_count, sizeof(FILE*));
-	service->last_prices = calloc(service->ticker_count, sizeof(double));
+	if (!service->price_sources)
+		return NULL; // TODO memory error DEFINE
+	
+	service->logger = logger_init("trade_service.log");
+	if (!service->logger)
+		return NULL;
+	
+	service->datapoint_count = 0;
 
 	if (!service->order_books || 
 		!service->price_sources || 
@@ -329,6 +452,7 @@ int trade_service_start(ST_TRADE_SERVICE *service) {
 		return 0;
 	}
 
+	
 	return 1;
 }
 
@@ -339,24 +463,29 @@ void trade_service_stop(ST_TRADE_SERVICE *service) {
 	service->running = 0;
 	pthread_join(service->monitor_thread, NULL);
 	logger_write(service->logger, "Trade service stopped");
+	//trade_service_destroy()
 }
 
 void *market_monitor(void *arg) {
-	ST_TRADE_SERVICE *service = (ST_TRADE_SERVICE*)arg;
 	
+	unsigned short ticker_idx;
+	ST_TRADE_SERVICE *service = (ST_TRADE_SERVICE*)arg;
+	ST_PRICE_POINT current_price;
 	while (service->running) {
-		for (size_t i = 0; i < service->ticker_count; i++) {
-			FILE *price_file = service->price_sources[i];
-			if (!price_file) 
+		for (ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+			current_price.price = 0;
+			current_price.flag = 0;
+			read_price_source(service->price_sources[ticker_idx], &current_price);
+			if (!current_price.price) {
+				fprintf(stderr, 
+					"Couldn't read price data source. Ticker idx: %s\n", 
+					tickers[ticker_idx]);
 				continue;
-
-			// Read price data (8 bytes for double)
-			// ...
-			double price;
-			if (fread(&price, sizeof(double), 1, price_file) == 1) {
-				process_fills(service, tickers[i], price);
-				service->last_prices[i] = price;
 			}
+			update_redis_price(service->redis, ticker_idx, &current_price);
+			process_fills(service, ticker_idx, current_price.price);
+			service->last_prices[ticker_idx].price = current_price.price;
+			service->last_prices[ticker_idx].flag = current_price.flag;
 		}
 		sleep(2); 
 	}

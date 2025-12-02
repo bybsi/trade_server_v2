@@ -157,5 +157,5 @@ void db_timestamp(char *buffer, unsigned short subtract_weeks) {
 	time(&now);
 	// 7 * 24 * 60 * 60 = 179200
 	now -= (subtract_weeks * 179200);
-	strftime(buffer, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
+	strftime(buffer, TIMESTAMP_LEN, "%Y-%m-%d %H:%M:%S", localtime(&now));
 }
