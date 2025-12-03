@@ -7,19 +7,19 @@
 typedef struct ht_entry_t {
 	char* key;
 	void* value;
-	struct ht_entry_t* next;	   // hash collision chain
-	void* ref; // reference to another datastructure node
-		   // that also holds a reference to this node.
-		   // In our case a DLL_NODE.
+	struct ht_entry_t* next; // hash collision chain
+	void* ref; /* reference to another containing datastructure node
+		      that also holds a reference to this node.
+		      In our case a DLL_NODE. */
 } HT_ENTRY;
 
 typedef struct hashtable_t {
-	// Num elements
+	// Current number of elements
 	size_t size;
-	// Max elements
+	// Max number of elements
 	size_t capacity;
 	HT_ENTRY** buckets;
-	// Entry cleanup function
+	// HT_ENTRY->value cleanup function
 	void (*free_func)(void*);
 	pthread_mutex_t lock;
 } HASHTABLE;

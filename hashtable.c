@@ -6,7 +6,9 @@
 #define INITIAL_CAPACITY 16
 #define RESIZE_THRESHOLD 0.75
 
-// ELF hash
+/*
+ELF hash.
+*/
 static size_t hash_function(const char* key, size_t capacity) {
 	size_t hash = 0;
 	size_t high;

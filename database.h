@@ -3,6 +3,7 @@
 
 #include <mysql/mysql.h>
 
+// ANDTHEN, FORIS4, SPARK, ZILBIAN ...
 #ifndef TICKER_LEN
 #define TICKER_LEN 8
 #endif

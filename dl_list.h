@@ -19,7 +19,5 @@ typedef struct dl_list_t {
 DL_LIST * dl_list_init(void (*print_func) (void *));
 DLL_NODE *dl_list_new_node(void *data);
 void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback)(void *data_node, void *dll_node));
-//DLL_NODE * dl_list_new_node(void *data);
-//DLL_NODE * dl_list_insert(DL_LIST *dl_list, void *data);
 
 #endif // _DL_LIST_H__
