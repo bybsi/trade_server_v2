@@ -308,7 +308,7 @@ void fill_order(ST_TBL_TRADE_ORDER *order) {
 	snprintf(sql, 1024, "UPDATE %s SET status='%c' filled_at='%s' WHERE id=%lu",
 		database_tbl_names[TBL_TRADE_ORDER], 
 		order->status, order->filled_at, order->id);
-	if (db_execute_query(sql) == -1) {
+	if (!db_execute_query(sql)) {
 		fprintf(stderr, "Unable to fill order: %lu for user: %u\n", 
 			order->id, order->user_id);
 		//logger_write(service->logger, "Unable to fill order: %lu", order->id);
@@ -325,7 +325,7 @@ void fill_order(ST_TBL_TRADE_ORDER *order) {
 		snprintf(sql, 1024, "UPDATE %s SET bybs=bybs + (%llu * %u) WHERE user_id=%u",
 			database_tbl_names[TBL_USER_CURRENCY],
 			order->price, order->amount, order->user_id);
-	if (db_execute_query(sql) == -1) {
+	if (!db_execute_query(sql)) {
 		fprintf(stderr, 
 			"Unable to update user wallet: order_id:%lu, user_id:%u\n", 
 			order->id, order->user_id);
@@ -446,7 +446,10 @@ void trade_service_destroy(ST_TRADE_SERVICE *service) {
 	free(service->price_sources);
 	free(service->last_prices);
 
-	logger_close(service->logger);
+	if (service->logger) {
+		logger_close(service->logger);
+		free(service->logger);
+	}
 	if (service->redis)
 		redisFree(service->redis);
 	free(service);
