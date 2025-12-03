@@ -275,7 +275,7 @@ void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 	((HT_ENTRY *)ht_node)->ref = dll_node;
 }
 
-// TODO define macros possibly 
+// TODO #defines
 //print_tbl_trade_order((ST_TBL_TRADE_ORDER *) ((HT_ENTRY *)data)->value);
 //printf("next link: \n");
 //printf("\t");
@@ -289,6 +289,11 @@ void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 Loads the orders from the database for all trade tickers.
 
 Params
+	service: The ST_TRADE_SERVICE instance.
+
+Returns
+	1 on success, 0 on failure
+	
 */
 static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service) {
 	unsigned short ticker_idx;
@@ -312,6 +317,24 @@ static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
+/*
+Loads orders from the database defined by the given query params.
+
+Params
+	side: 'B' for buy or 'S' for sell
+	order_by: "ASC" or "DESC"
+	ticker_id: The index of const char *tickers to use.
+			generally defined as TICKER_<TICKERNAME>
+			#define TICKER_ANDTHEN 1 (see above)
+	ht_orders: The hashtable containing orders.
+	rbt_orders: The red and black tree containing orders.
+	last_order_read_time: The timestamp of the time this function ran, 
+				used to only grab newly added orders.
+	id_prefix: see #define BUY_ORDER_ID_PREFIX
+
+Returns
+	1 on success, 0 on error.
+*/
 static unsigned short load_orders_helper(
 	char side, char *order_by, unsigned short ticker_id, 
 	HASHTABLE *ht_orders, RBT_NODE **rbt_orders, 
@@ -367,6 +390,16 @@ static unsigned short load_orders_helper(
 	return 1;
 }
 
+/*
+Loads buy and sell orders into memory and populates datastructures.
+Updates the last_order_read_time value.
+
+Params
+	service: The ST_TRADE_SERVICE instance.
+
+Returns
+	1 on success, 0 on failure.
+*/
 static unsigned short load_orders(ST_TRADE_SERVICE *service) {
 //	unsigned short result = (load_buy_orders(service) & load_sell_orders(service));
 	unsigned short result = load_orders_all_tickers(service);
@@ -374,7 +407,15 @@ static unsigned short load_orders(ST_TRADE_SERVICE *service) {
 	return result;
 }
 
+/*
+Takes an order and fills it, meaning that it is marked as
+filled and money / assets have been transferred the appropriate places.
+
 // TODO add logging .... hmm
+
+Params
+	order: A pointer to the order to fill.
+*/
 void fill_order(ST_TBL_TRADE_ORDER *order) {
 	char sql[1024];
 	char ticker[TICKER_LEN];
@@ -412,7 +453,16 @@ void fill_order(ST_TBL_TRADE_ORDER *order) {
 	}
 }
 
+/*
+This is a callback function that gets executed as part of a
+red and black tree traversal / search / find.
+
 // TODO add logging .... hmm
+
+Params
+	data: This will be a doubly linked list and is the data of
+		the red and black tree node.
+*/
 void order_visitor(void *data) {
 	DL_LIST *order_list;
 	DLL_NODE *current_node;
@@ -433,8 +483,20 @@ void order_visitor(void *data) {
 	}
 }
 
+/*
+Performs a search based on the current and last ticker price for open orders.
+Those orders are then processed using a visitor callback function (above).
+
 // TODO fill in last_prices[ticker] before execuing this loop so
 // we don't have to check if it's set.
+
+Params
+	service: The ST_TRADE_SERVICE instance.
+	ticker: The index of const char *tickers to use.
+		generally defined as TICKER_<TICKERNAME>
+		#define TICKER_ANDTHEN 1 (see above)
+	current_price: The current market price of the ticker
+*/
 static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsigned long long current_price) {
 	unsigned long long low_price, high_price;
 	if (current_price > service->last_prices[ticker].price) {
@@ -457,7 +519,12 @@ static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsi
 		&order_visitor);
 }
 
+/*
+Initializes the trade service instance.
 
+Returns
+	An ST_TRADE_SERVICE pointer or NULL on error.
+*/
 ST_TRADE_SERVICE *trade_service_init(void) {
 	unsigned short i;
 
@@ -505,6 +572,12 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	return service;
 }
 
+/*
+Deletes the trade service instance.
+
+Params
+	service: The ST_TRADE_SERVICE instance to delete.
+*/
 void trade_service_destroy(ST_TRADE_SERVICE *service) {
 	if (!service) 
 		return;
@@ -533,6 +606,15 @@ void trade_service_destroy(ST_TRADE_SERVICE *service) {
 	free(service);
 }
 
+/*
+Starts the trade service in a new thread.
+
+Params
+	service: The ST_TRADE_SERVICE instance.
+
+Returns
+	1 on success, 0 on failure.
+*/
 int trade_service_start(ST_TRADE_SERVICE *service) {
 	if (!service) 
 		return 0;
@@ -556,6 +638,12 @@ int trade_service_start(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
+/*
+Stops the trade service.
+
+Params
+	service: The ST_TRADE_SERICE instance.
+*/
 void trade_service_stop(ST_TRADE_SERVICE *service) {
 	if (!service) 
 		return;
@@ -566,6 +654,12 @@ void trade_service_stop(ST_TRADE_SERVICE *service) {
 	//trade_service_destroy()
 }
 
+/*
+The market_monitor thread loop which is used by trade_service_start.
+
+Params
+	arg: This will be an ST_TRADE_SERVICE struct.
+*/
 void *market_monitor(void *arg) {
 	
 	unsigned short ticker_idx;
