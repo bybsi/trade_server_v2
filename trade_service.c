@@ -57,6 +57,17 @@ static void strtolower(char *str) {
 		str[i] = tolower(str[i]);
 }
 
+/*
+Executes a Redis 'get key' command.
+
+Params
+	redis: The redisContext.
+	key: The key to retrieve data from.
+
+Returns
+	A malloc'd char * containing data found using get key.
+	NULL on error or if no result is found.
+*/
 static char * redis_get(redisContext *redis, char *key) {
 	redisReply *reply;
 	char *result = NULL;
@@ -76,11 +87,28 @@ static char * redis_get(redisContext *redis, char *key) {
 	return result;
 }
 
+/*
+Executes a redis command such as set KEY VALUE.
+
+Params
+	redis: The redisContext
+	cmd: The command to execute.
+*/
 static void redis_cmd(redisContext *redis, char *cmd) {
 	freeReplyObject( redisCommand(redis, cmd) );
 }
 
-// Caller must use freeReplyObject()
+/*
+Executes the redis lrange command.
+
+Params
+	redis: The redisContext.
+	args: A string containing everything that goes after "lrange "
+
+Returns
+	Pointer to a redisReply struct.
+	This pointer must be freed using freeReplyObject()
+*/
 static redisReply * redis_lrange(redisContext *redis, char *args) {
 	redisReply *reply;
 	char cmd[128] = "lrange ";
@@ -97,6 +125,13 @@ static redisReply * redis_lrange(redisContext *redis, char *args) {
 	return reply;
 }
 
+/*
+Initializes the redis connection.
+
+Returns
+	A pointer to the redisContext.
+	NULL on error.
+*/
 static redisContext * redis_init() {
         redisContext *redis = redisConnect(REDIS_HOST, REDIS_PORT);
 
@@ -113,7 +148,18 @@ static redisContext * redis_init() {
 	return redis;
 }
 
-// This key is not used in SSE, however it can be used for other features.
+/*
+Updates the redis key associated with a tickers current price.
+
+This key is not used in SSE, however it can be used for other features.
+
+Params
+	redis: The redisContext.
+	ticker_idx: The index of const char *tickers to use.
+			generally defined as TICKER_<TICKERNAME>
+			#define TICKER_ANDTHEN 1 (see above)
+	pp: The price data to set the keys value to.
+*/
 static void update_redis_ticker_price(redisContext *redis, unsigned short ticker_idx, ST_PRICE_POINT *pp) {
 
 	char cmd[128];
@@ -121,13 +167,19 @@ static void update_redis_ticker_price(redisContext *redis, unsigned short ticker
 	redis_cmd(redis, cmd);
 }
 
-/**
-* Opens a file handle to each tickers price data.
-*
-* Price data files are binary where each price is packed to 5 bytes
-* [float][byte]
-* 4 bytes: price
-* 1 byte:  candle flag (OPEN|CLOSE|LOW|HIGH) <-- TODO: needs a rework
+/*
+Opens a file handle to each tickers price data.
+
+Price data files are binary where each price is packed to 5 bytes
+[float][byte]
+4 bytes: price
+1 byte:  candle flag (OPEN|CLOSE|LOW|HIGH) <-- TODO: needs a rework
+
+Params
+	service: The ST_TRADE_SERVICE instance.
+
+Returns
+	1 on success, 0 on failure.
 */
 static int load_price_sources(ST_TRADE_SERVICE *service) {
 	for (size_t i = 0; i < service->ticker_count; i++) {
@@ -144,10 +196,14 @@ static int load_price_sources(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
-/**
-* Reads the next price from a tickers price source file and places
-* the data into ST_PRICE_POINT *price_point.
-* If there is an error the price_point will have a price of 0.
+/*
+Reads the next price from a tickers price source file and places
+the data into an ST_PRICE_POINT struct.
+If an error occurs, the ST_PRICE_POINT struct will have a price of 0.
+
+Params
+	fh: The file descriptor to read from.
+	price_point: The ST_PRICE_POINT struct to put the data into.
 */
 static void read_price_source(FILE *fh, ST_PRICE_POINT *price_point) {
 	float price;
@@ -168,9 +224,16 @@ static void read_price_source(FILE *fh, ST_PRICE_POINT *price_point) {
 	price_point->flag = flag_byte;
 }
 
-/**
-* Finishes initializing the trade service after
-* trade_service_start has been called.
+/*
+TODO ??
+Finishes initializing the trade service after
+trade_service_start has been called.
+
+Params
+	service: The ST_TRADE_SERVICE instance.
+
+Returns
+	1 on success, 0 on failure
 */
 static int init_service(ST_TRADE_SERVICE *service) {
 	if (!db_init())
@@ -190,13 +253,23 @@ static int init_service(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
+/* Appends to the hashtable key to make it more hashable
+   especially if buy and sell orders are somehow reworked
+   to potentially have conflicting IDs */
 #define BUY_ORDER_ID_PREFIX "b"
 #define SELL_ORDER_ID_PREFIX "s"
-/**
-* Callback function which is used to map a hashtable node
-* to its associated DL_LIST *node.
-* This gives the order, and us, access to the surrounding data structure if
-* it is accessed using a hashtable lookup, for example if it's cancelled.
+
+/*
+Callback function which is used to map a hashtable node
+to its associated DL_LIST *node.
+This gives the order, access to the surrounding data structure if
+it is accessed using a hashtable lookup. For example,
+when an order is cancelled this will be useful.
+
+Params
+	ht_node: The hashtable entry stored in the orders hashtable.
+	dll_node: The doubly linked list node stored as the data of
+		  a red and black tree.
 */
 void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 	((HT_ENTRY *)ht_node)->ref = dll_node;
@@ -212,6 +285,11 @@ void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 //		((ST_TBL_TRADE_ORDER *)((HT_ENTRY *)next->data)->value)
 //	);
 
+/*
+Loads the orders from the database for all trade tickers.
+
+Params
+*/
 static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service) {
 	unsigned short ticker_idx;
 	unsigned short result;
