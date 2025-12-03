@@ -8,6 +8,17 @@
 
 #define LOG_DIR "logs/"
 
+/*
+Initializes a log file. Files are written to the directory
+defined by #define LOG_DIR.
+
+Params
+	file_name: the filename, not containing a path.
+
+Returns
+	A pointer to and ST_LOGGER struct.
+	NULL if there is an error.
+*/
 ST_LOGGER * logger_init(char *file_name) {
 	// TODO: rotating files
 	FILE *fh;
@@ -15,6 +26,7 @@ ST_LOGGER * logger_init(char *file_name) {
 	ST_LOGGER *logger = malloc(sizeof(ST_LOGGER)); 
 
 	if (pthread_mutex_init(&logger->lock, NULL) != 0) {
+		fprintf(stderr, "Could not init logger mutex\n");
 		free(logger);
 		return NULL;
 	}
@@ -31,6 +43,16 @@ ST_LOGGER * logger_init(char *file_name) {
 	return logger;
 }
 
+/*
+Writes to the log file that's attached to the given ST_LOGGER instance.
+The printf() syntax and formatting can be used. e.g.
+logger_write(logger, "%s%d", chr_ptr, number);
+
+Params
+	logger: The ST_LOGGER instance.
+	message: The log message format string.
+	args: Optional variables to be applied to the format string.
+*/
 void logger_write(ST_LOGGER *logger, char *message, ...) {
 	pthread_mutex_lock(&logger->lock);
 	if (logger->fh) { 
@@ -40,9 +62,8 @@ void logger_write(ST_LOGGER *logger, char *message, ...) {
 		fseek(logger->fh, 0, SEEK_END);
 		// Timestamp
 		fprintf(logger->fh, "[%s]\t", strtok(ctime(&now), "\n"));
-		// This allows us to call logger_write like calling
-		// fprintf()...
-		//      logger_write(logger, "%s%s", str1, str2);
+		// This allows logger_write to be called like printf()
+		// logger_write(logger, "%s%s", str1, str2);
 		va_start(args, message);
 		vfprintf(logger->fh, message, args);
 		va_end(args);
@@ -53,6 +74,12 @@ void logger_write(ST_LOGGER *logger, char *message, ...) {
 	pthread_mutex_unlock(&logger->lock);
 }
 
+/*
+Closes the log file.
+
+Params
+	logger: The ST_LOGGER instance.
+*/
 void logger_close(ST_LOGGER *logger) {
 	pthread_mutex_lock(&logger->lock);
 	if (logger->fh) {

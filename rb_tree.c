@@ -190,7 +190,6 @@ RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key) {
 }
 
 void rbt_visit_nodes_in_range(RBT_NODE *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *)) {
-	// TODO use morris traversal
 	if (!node)
 		return;
 	

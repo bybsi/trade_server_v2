@@ -1,3 +1,7 @@
+/**
+	See SSEserver.png on github for more information
+	bybsi/trade_server_v2/SSEserver.png
+*/
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -9,21 +13,34 @@
 #include "sse_client_writer.h"
 #include "logger.h"
 
-/*
-typedef struct client_list {
-	int client_fd;
-	struct client_list *next;
-} ST_CLIENT_LIST;
-*/
-
+/* neat */
 static int verbose = 1;
 
+/*
+Chooses an available client write thread.
+
+Params
+	client_writer: The ST_CLIENT_WRITER instance
+
+Returns
+	A pointer to the client list manager being used by the thread.
+*/
 static ST_CLIENT_LIST_MANAGER * client_writer_select_manager(ST_CLIENT_WRITER *client_writer) {
 	if (client_writer->round_robin_idx == NUM_CLIENT_LISTS)
 		client_writer->round_robin_idx = 0;
 	return &client_writer->clm[client_writer->round_robin_idx++];
 }
 
+/*
+The thread worker function used to write data to clients.
+
+It reads the most recent data from the shared data queue and
+sends it to all clients managed by the associated ST_CLIENT_LIST_MANAGER.
+
+Params
+	clm: pointer that needs to cast to an ST_CLIENT_LIST_MANAGER
+
+*/
 void *client_write_thread(void *clm) {
 	unsigned short i;
 	unsigned long long last_data_id;
@@ -58,7 +75,9 @@ void *client_write_thread(void *clm) {
 			clm_ptr->last_data_read_idx = 0;
 
 		//pthread_mutex_lock(&clm->lock);
-
+		// TODO this should be a while loop to send all recent data.
+		// but it's not important right now because of how the
+		// timing currently works.
 		// Send the most recent record if it hasn't been sent.
 		// This also handles cases where thre is no data
 		// at the current index because the timestamp(id) is still 0.
@@ -91,6 +110,16 @@ void *client_write_thread(void *clm) {
 	}
 }
 
+/*
+Initializes a new client writer.
+
+Params
+	data_queue_size: The max capacity of the shared data queue.
+
+Returns
+	A pointer to the ST_CLIENT_WRITER instance.
+	NULL on error.
+*/
 ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 	unsigned short i;
 	char log_file_name[64];
@@ -119,7 +148,7 @@ ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 		client_writer->clm[i].data_queue = client_writer->data_queue;
 		client_writer->clm[i].data_queue_size = data_queue_size;
 	
-		//REMOVE
+		//TODO REMOVE ? maybe.?
 		client_writer->clm[i].id = i+1;
 	}
 	
@@ -129,6 +158,12 @@ ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 	return client_writer;
 }
 
+/*
+Starts a worker thread to handle each client list.
+
+Params
+	client_writer: The ST_CLIENT_WRITER instance.
+*/
 void client_writer_start(ST_CLIENT_WRITER *client_writer) {
 	unsigned short i;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
@@ -136,6 +171,12 @@ void client_writer_start(ST_CLIENT_WRITER *client_writer) {
 	}
 }
 
+/*
+Stops all client writers and waits for them to rejoin the main thread.
+
+Params
+	client_writer: The ST_CLIENT_WRITER instance.
+*/
 void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 	unsigned short i;
 	int *status;
@@ -152,6 +193,13 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 	logger_close(client_writer->logger);
 }
 
+/*
+Adds a newly conneted client to the next available client manager.
+
+Params
+	client_writer: the ST_CLIENT_WRITER instance.
+	client_fd: file descriptor of the newly connected client.
+*/
 void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	unsigned short i = 0;
 	static unsigned short capacity_logged = 0;
@@ -167,7 +215,8 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	*/
 
 	if (clm->last_client_insert_idx == NUM_CLIENTS_PER_LIST) {
-		// log at capacity.
+		// Tells us that thread capacity has been reached.
+		// Only log this one time.
 		if (!capacity_logged) {
 			logger_write(client_writer->logger, 
 				"Capacity reached for writer(%d)",
@@ -180,11 +229,18 @@ void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
 	//pthread_mutex_lock(&clm->lock);
 	if (verbose)
 		printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
-
 	clm->client_fd_arr[clm->last_client_insert_idx++] = client_fd;
 	//pthread_mutex_unlock(&clm->lock);
 }
-	
+
+/*
+Appends data to the shared data queue, which is read by the client write
+threads to send data to clients.
+
+Params
+	client_writer: The ST_CLIENT_WRITER instance.
+	data: The data to append to the queue.
+*/
 void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data) {
 	ST_CLIENT_DATA_NODE *data_node;
 	if (client_writer->last_data_write_idx == client_writer->data_queue_size)
@@ -215,3 +271,4 @@ int send_sse_event(int client_fd, const char *data) {
 	ssize_t bytes = write(client_fd, data, data_len);
 	return (bytes == data_len) ? 0 : -1;
 }
+

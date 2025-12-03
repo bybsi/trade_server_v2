@@ -1,3 +1,7 @@
+/**
+	See SSEserver.png on github for more information
+	bybsi/trade_server_v2/SSEserver.png
+*/
 #ifndef _SSE_CLIENT_WRITER_H_
 #define _SSE_CLIENT_WRITER_H_
 
