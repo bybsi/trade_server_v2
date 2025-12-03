@@ -300,7 +300,7 @@ static unsigned short load_orders(ST_TRADE_SERVICE *service) {
 void fill_order(ST_TBL_TRADE_ORDER *order) {
 	char sql[1024];
 	char ticker[TICKER_LEN];
-	
+	return;
 	// TODO run these in the same transaction as both need to succeed.
 	db_timestamp(order->filled_at, 0);
 	order->status = 'F';

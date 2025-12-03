@@ -45,7 +45,7 @@ unsigned short read_mysql_connect_file(char vars[][32]) {
 	}
 	fclose(fh);
 
-	if (line_num != 4) {
+	if (line_idx != 4) {
 		fprintf(stderr, "Invalid number of lines in database connection file.\n");
 		return 0;
 	}
