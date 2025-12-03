@@ -253,7 +253,7 @@ static int init_service(ST_TRADE_SERVICE *service) {
 	return 1;
 }
 
-/* Appends to the hashtable key to make it more hashable
+/* Appends to the hashtable key to make distribution more even
    especially if buy and sell orders are somehow reworked
    to potentially have conflicting IDs */
 #define BUY_ORDER_ID_PREFIX "b"
