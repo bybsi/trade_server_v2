@@ -190,7 +190,7 @@ RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key) {
 }
 
 void rbt_visit_nodes_in_range(RBT_NODE *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *)) {
-	if (!node)
+	if (!node || node == NIL)
 		return;
 	
 	if (node->key > low_key)
@@ -260,6 +260,7 @@ RBT_NODE * rbt_init() {
 		NIL->left = NULL;
 		NIL->right = NULL;
 		NIL->parent = NULL;
+		NIL->orders_list = NULL;
 	}
 	return NIL;
 }
