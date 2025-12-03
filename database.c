@@ -216,7 +216,7 @@ Params
 void db_timestamp(char *buffer, unsigned short subtract_weeks) {
 	time_t now;
 	time(&now);
-	// 7 * 24 * 60 * 60 = 179200
-	now -= (subtract_weeks * 179200);
+	// 7 * 24 * 60 * 60 = 604800
+	now -= (subtract_weeks * 604800);
 	strftime(buffer, TIMESTAMP_LEN, "%Y-%m-%d %H:%M:%S", localtime(&now));
 }
