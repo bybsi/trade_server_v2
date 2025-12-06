@@ -1,3 +1,8 @@
+/*
+QUEUE
+
+Doubly linked list that behaves like a queue.
+*/
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +61,9 @@ Params
 	data_callback: Optional callback function.
 */
 void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback) (void *, void *)) {
+	if (!dl_list)
+		return;
+
 	DLL_NODE *new_node = dl_list_new_node(data);
 	new_node->prev = dl_list->tail;
 	dl_list->tail->next = new_node;
@@ -64,6 +72,22 @@ void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback) (void *,
 		//data_callback(HT_ENTRY *, DLL_NODE *);
 		data_callback(data, new_node);
 	}
+}
+
+void dl_list_remove(DL_LIST *dl_list, DLL_NODE *node) {
+	// Currently the caller free's the data from the node,
+	// it is also pointed to by the hashtable.
+	if (!node)
+		return;
+
+	if (node == dl_list->tail) {
+		dl_list->tail = dl_list->tail->prev;
+		dl_list->tail->next = NULL;
+	} else {
+		node->prev->next = node->next;
+		node->next->prev = node->prev;
+	}
+	free(node);
 }
 
 

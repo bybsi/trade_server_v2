@@ -22,24 +22,27 @@ httest: hashtable.c hashtable_test.c
 redistest: redis_test.c
 	$(CCDBG) $(LDFLAGS) redis_test.c $(WITH_REDIS) -o redistest
 
+dltest: dl_list.c dl_list_test.c
+	$(CCDBG) $(LDFLAGS) dl_list.c dl_list_test.c -o dltest
+
 rbtest: dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES)
 	$(CCDBG) $(LDFLAGS) dl_list.c rb_tree.c rb_tree_test.c database.c $(DBTABLES) -o rbtest $(WITH_MYSQL)
 
 servicetest: database.c dl_list.c hashtable.c logger.c \
-		rb_tree.c sse_client_writer.c sse_server.c \
+		rb_tree.c redis.c sse_client_writer.c sse_server.c \
 		trade_service.c trade_service_test.c $(DBTABLES)
 	$(CCDBG) $(LDFLAGS) database.c dl_list.c hashtable.c \
-	logger.c rb_tree.c sse_client_writer.c sse_server.c \
+	logger.c rb_tree.c redis.c sse_client_writer.c sse_server.c \
 	trade_service.c trade_service_test.c $(DBTABLES) \
 	-o servicetest \
 	$(WITH_MYSQL) \
 	$(WITH_REDIS)
 
 tradeservice: database.c dl_list.c hashtable.c logger.c \
-		rb_tree.c sse_client_writer.c sse_server.c \
+		rb_tree.c redis.c sse_client_writer.c sse_server.c \
 		trade_service.c $(DBTABLES)
 	$(CCDBG) $(LDFLAGS) database.c dl_list.c hashtable.c \
-	logger.c rb_tree.c sse_client_writer.c sse_server.c \
+	logger.c rb_tree.c redis.c sse_client_writer.c sse_server.c \
 	trade_service.c $(DBTABLES) \
 	-o tradeservice \
 	$(WITH_MYSQL) \
