@@ -140,6 +140,8 @@ Returns
 	1 on success, 0 on failure
 */
 static int init_service(ST_TRADE_SERVICE *service) {
+	ST_PRICE_POINT pp = {0, 0};
+
 	if (!db_init())
 		return 0;
 
@@ -149,6 +151,14 @@ static int init_service(ST_TRADE_SERVICE *service) {
 
 	if (!load_price_sources(service)) 
 		return 0;
+	
+	// TODO - This price should come from redis current price.
+	for (int ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+		read_price_source(service->price_sources[ticker_idx], &pp);
+		if (pp.price == 0)
+			continue;
+		service->last_prices[ticker_idx].price = pp.price;
+	}
 
 	db_timestamp(service->last_order_read_time, BACKLOAD_WEEKS);
 	if (!load_orders(service))
@@ -391,11 +401,6 @@ void order_visitor(void *data) {
 Performs a search based on the current and last ticker price for open orders.
 Those orders are then processed using a visitor callback function (above).
 
-TODO fill in last_prices[ticker] before execuing this loop so
-we don't have to check if it's set.
-	- initiallize last price to last price in Redis.
-	- If this price doesn't exist yet
-
 Params
 	service: The ST_TRADE_SERVICE instance.
 	ticker: The index of const char *tickers to use.
@@ -570,11 +575,9 @@ void *market_monitor(void *arg) {
 	
 	unsigned short ticker_idx;
 	ST_TRADE_SERVICE *service = (ST_TRADE_SERVICE*)arg;
-	ST_PRICE_POINT current_price;
+	ST_PRICE_POINT current_price = {0, 0};
 	while (service->running) {
 		for (ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
-			current_price.price = 0;
-			current_price.flag = 0;
 			read_price_source(service->price_sources[ticker_idx], &current_price);
 			if (!current_price.price) {
 				fprintf(stderr, 
