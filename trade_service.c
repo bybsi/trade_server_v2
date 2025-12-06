@@ -380,23 +380,29 @@ Params
 */
 void order_visitor(void *data) {
 	DL_LIST *order_list;
-	DLL_NODE *current_node;
+	DLL_NODE *current_node, *tmp_node;
 	HT_ENTRY *ht_entry;
 	ST_TBL_TRADE_ORDER *order;
 
 	order_list = (DL_LIST *) data;
 	current_node = order_list->head->next;
-
+	// TODO need a better way to iterate the dl_list and delete
+	// while on the current node.
 	while (current_node) {
 		order = (ST_TBL_TRADE_ORDER *)((HT_ENTRY *) current_node->data)->value;
 
 		printf("Filling order: %ld\n", order->id);
-		// TODO delete from HT and DL_LIST
 		if (fill_order(order)) {
-			// TODO delete order.
+			// TODO still need to delete item from the hashtable,
+			// need a global pointer, it is a global hashtable afterall..
+			// but it's stored in ST_TRADE_SERVICE... rework maybe??
+			tmp_node = current_node->next;
+			printf("Removing order\n");
+			dl_list_remove(order_list, current_node);
+			current_node = tmp_node;
+		} else {
+			current_node = current_node->next;
 		}
-
-		current_node = current_node->next;
 	}
 }
 
