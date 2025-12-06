@@ -34,8 +34,10 @@ static const char *tickers[] = {
 	"ZILBIAN",
 	NULL
 };
-
-static const size_t DEFAULT_TICKER_COUNT = 4;
+// Pointer to the logger instance for use inside of
+// certain callback functions that don't have access to the
+// service instance.
+static ST_LOGGER *global_logger_ptr = NULL;
 
 static unsigned short load_orders(ST_TRADE_SERVICE *service);
 static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service);
@@ -45,6 +47,7 @@ static unsigned short load_orders_helper(
 	char *last_order_read_time, char *id_prefix);
 static void process_fills(ST_TRADE_SERVICE *service, 
 	unsigned short ticker, unsigned long long current_price);
+static unsigned short fill_order(ST_TBL_TRADE_ORDER *order);
 
 static void strtolower(char *str) {
 	for (unsigned short i = 0; *str; i++)
@@ -325,15 +328,13 @@ static unsigned short load_orders(ST_TRADE_SERVICE *service) {
 Takes an order and fills it, meaning that it is marked as
 filled and money / assets have been transferred the appropriate places.
 
-// TODO add logging .... hmm
-
 Params
 	order: A pointer to the order to fill.
 */
-void fill_order(ST_TBL_TRADE_ORDER *order) {
+static unsigned short fill_order(ST_TBL_TRADE_ORDER *order) {
 	char sql[1024];
 	char ticker[TICKER_LEN];
-	return;
+	return 0;
 	// TODO run these in the same transaction as both need to succeed.
 	db_timestamp(order->filled_at, 0);
 	order->status = 'F';
@@ -344,8 +345,8 @@ void fill_order(ST_TBL_TRADE_ORDER *order) {
 	if (!db_execute_query(sql)) {
 		fprintf(stderr, "Unable to fill order: %lu for user: %u\n", 
 			order->id, order->user_id);
-		//logger_write(service->logger, "Unable to fill order: %lu", order->id);
-		return;
+		logger_write(global_logger_ptr, "Unable to fill order: %lu", order->id);
+		return 0;
 	}
 
 	snprintf(ticker, TICKER_LEN, "%s", order->ticker);
@@ -362,16 +363,16 @@ void fill_order(ST_TBL_TRADE_ORDER *order) {
 		fprintf(stderr, 
 			"Unable to update user wallet: order_id:%lu, user_id:%u\n", 
 			order->id, order->user_id);
-		//logger_write(service->logger, "Unable to fill order: %lu", order->id);
-		return;
+		logger_write(global_logger_ptr, "Unable to fill order: %lu", order->id);
+		return 0;
 	}
+
+	return 1;
 }
 
 /*
 This is a callback function that gets executed as part of a
 red and black tree traversal / search / find.
-
-// TODO add logging .... hmm
 
 Params
 	data: This will be a doubly linked list and is the data of
@@ -391,7 +392,9 @@ void order_visitor(void *data) {
 
 		printf("Filling order: %ld\n", order->id);
 		// TODO delete from HT and DL_LIST
-		fill_order(order);
+		if (fill_order(order)) {
+			// TODO delete order.
+		}
 
 		current_node = current_node->next;
 	}
@@ -447,6 +450,7 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
 	if (!service) 
 		return NULL; // TODO memory error DEFINE
+	service->datapoint_count = 0;
 	service->ticker_count = sizeof(tickers) / sizeof(tickers[0]) - 1;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
@@ -470,9 +474,8 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	service->logger = logger_init("trade_service.log");
 	if (!service->logger)
 		return NULL;
+	global_logger_ptr = service->logger;
 	
-	service->datapoint_count = 0;
-
 	if (!service->order_books || 
 		!service->price_sources || 
 		!service->last_prices) {
