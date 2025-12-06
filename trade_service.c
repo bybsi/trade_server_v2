@@ -5,7 +5,7 @@
 
 #include "hashtable.h"
 #include "rb_tree.h"
-#include "hiredis/hiredis.h"
+#include "redis.h"
 #include "database.h"
 #include "trade_service.h"
 #include "sse_server.h"
@@ -37,12 +37,6 @@ static const char *tickers[] = {
 
 static const size_t DEFAULT_TICKER_COUNT = 4;
 
-// TODO: move redis into own module just like the database
-static char * redis_get(redisContext *redis, char *key);
-static void redis_cmd(redisContext *redis, char *cmd);
-static redisReply * redis_lrange(redisContext *redis, char *args);
-static redisContext * redis_init();
-
 static unsigned short load_orders(ST_TRADE_SERVICE *service);
 static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service);
 static unsigned short load_orders_helper(
@@ -55,97 +49,6 @@ static void process_fills(ST_TRADE_SERVICE *service,
 static void strtolower(char *str) {
 	for (unsigned short i = 0; *str; i++)
 		str[i] = tolower(str[i]);
-}
-
-/*
-Executes a Redis 'get key' command.
-
-Params
-	redis: The redisContext.
-	key: The key to retrieve data from.
-
-Returns
-	A malloc'd char * containing data found using get key.
-	NULL on error or if no result is found.
-*/
-static char * redis_get(redisContext *redis, char *key) {
-	redisReply *reply;
-	char *result = NULL;
-	char cmd[128] = "get ";
-	if (strlen(key) > 123)
-		return NULL;
-	strcat(cmd, key);
-
-        reply = redisCommand(redis, cmd);
-        if (reply->type == REDIS_REPLY_STRING && reply->str) {
-		result = strdup(reply->str);
-        } else if (reply->type == REDIS_REPLY_ERROR) {
-                fprintf(stderr, "Error: redis_get\n");
-        }
-
-	freeReplyObject(reply);
-	return result;
-}
-
-/*
-Executes a redis command such as set KEY VALUE.
-
-Params
-	redis: The redisContext
-	cmd: The command to execute.
-*/
-static void redis_cmd(redisContext *redis, char *cmd) {
-	freeReplyObject( redisCommand(redis, cmd) );
-}
-
-/*
-Executes the redis lrange command.
-
-Params
-	redis: The redisContext.
-	args: A string containing everything that goes after "lrange "
-
-Returns
-	Pointer to a redisReply struct.
-	This pointer must be freed using freeReplyObject()
-*/
-static redisReply * redis_lrange(redisContext *redis, char *args) {
-	redisReply *reply;
-	char cmd[128] = "lrange ";
-	if (strlen(args) > 123)
-		return NULL;
-	strcat(cmd, args);
-
-        reply = redisCommand(redis, cmd);
-	if (reply->type != REDIS_REPLY_ARRAY) {
-		fprintf(stderr, "Error: Unexpected redis return type.\n");
-	} else if (reply->type == REDIS_REPLY_ERROR) {
-		fprintf(stderr, "Error: redis_lrange\n");
-	}
-	return reply;
-}
-
-/*
-Initializes the redis connection.
-
-Returns
-	A pointer to the redisContext.
-	NULL on error.
-*/
-static redisContext * redis_init() {
-        redisContext *redis = redisConnect(REDIS_HOST, REDIS_PORT);
-
-        if (!redis || redis->err) {
-                if (redis) {
-                        fprintf(stderr, "Error: %s\n", redis->errstr);
-			redisFree(redis);
-			redis = NULL;
-		}
-                else
-                        fprintf(stderr, "Can't allocate redis context.\n");
-        }
-
-	return redis;
 }
 
 /*
@@ -201,6 +104,7 @@ Reads the next price from a tickers price source file and places
 the data into an ST_PRICE_POINT struct.
 If an error occurs, the ST_PRICE_POINT struct will have a price of 0.
 
+A call to read_price_source indicates that the price has changed
 Params
 	fh: The file descriptor to read from.
 	price_point: The ST_PRICE_POINT struct to put the data into.
@@ -487,8 +391,10 @@ void order_visitor(void *data) {
 Performs a search based on the current and last ticker price for open orders.
 Those orders are then processed using a visitor callback function (above).
 
-// TODO fill in last_prices[ticker] before execuing this loop so
-// we don't have to check if it's set.
+TODO fill in last_prices[ticker] before execuing this loop so
+we don't have to check if it's set.
+	- initiallize last price to last price in Redis.
+	- If this price doesn't exist yet
 
 Params
 	service: The ST_TRADE_SERVICE instance.
@@ -499,6 +405,11 @@ Params
 */
 static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsigned long long current_price) {
 	unsigned long long low_price, high_price;
+
+	// see above TODO. 
+	if (service->last_prices[ticker].price == 0)
+		return;
+
 	if (current_price > service->last_prices[ticker].price) {
 		high_price = current_price;
 		low_price = service->last_prices[ticker].price;
@@ -531,24 +442,19 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
 	if (!service) 
 		return NULL; // TODO memory error DEFINE
-
 	service->ticker_count = sizeof(tickers) / sizeof(tickers[0]) - 1;
-
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
 	service->order_books = calloc(service->ticker_count, sizeof(ST_ORDER_BOOK));
 	if (!service->order_books)
 		return NULL; // TODO memory error DEFINE
-	
 	service->last_prices = calloc(service->ticker_count, sizeof(ST_PRICE_POINT));
 	if (!service->last_prices)
 		return NULL; // TODO memory error DEFINE
-	
 	for (i = 0; i < service->ticker_count; i++) {
 		// Initialize data structures to handle orders
 		service->order_books[i].rbt_buy_orders = rbt_init();
 		service->order_books[i].rbt_sell_orders = rbt_init();
-
 		service->last_prices[i].price = 0;
 		service->last_prices[i].flag = 0;
 	}
