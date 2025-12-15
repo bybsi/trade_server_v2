@@ -28,6 +28,11 @@ int main(int argc, char *argv[]) {
 	printf("Got: %s\n", (char *)ht_get(ht, "111"));
 	printf("Got: %s\n", (char *)ht_get(ht, "aaaa"));
 	printf("Got: %s\n", (char *)ht_get(ht, "doubleu"));
+	printf("Removing 111\n");
+	ht_remove(ht, "111");
+	printf("Got: %s\n", (char *)ht_get(ht, "111"));
+	printf("Got: %s\n", (char *)ht_get(ht, "aaaa"));
+	printf("Got: %s\n", (char *)ht_get(ht, "doubleu"));
 	ht_destroy(ht);
 	exit(0);
 } 

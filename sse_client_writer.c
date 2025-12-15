@@ -181,9 +181,9 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 	unsigned short i;
 	int *status;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {		
-		pthread_mutex_lock(&client_writer->clm[i].lock);
+//		pthread_mutex_lock(&client_writer->clm[i].lock);
 		client_writer->clm[i].stop = 1;
-		pthread_mutex_unlock(&client_writer->clm[i].lock);
+//		pthread_mutex_unlock(&client_writer->clm[i].lock);
 	}
 	
 	for (i = 0; i < NUM_CLIENT_LISTS; i++)

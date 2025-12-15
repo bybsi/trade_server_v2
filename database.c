@@ -6,8 +6,8 @@
 
 #include "database.h"
 
-// TODO Decrypt PW like in the Python version.
-// 	Also use environment variables for this with getenv().
+// TODO Decrypt PW from .keys dir.
+// 	Also use environment variables via getenv().
 //  - currently plaintext in .dbconnect file
 #define DB_CONNECT_STR(var) var[0], var[1], var[2], var[3]
 
@@ -15,11 +15,12 @@
 MYSQL *mysql_conn = NULL;
 
 /*
-Reads the .dbconnect file having format:
-	HOSTADDR
-	USERNAME
-	PASSWORD
-	DBNAME
+Reads the .dbconnect file format:
+HOSTADDR
+USERNAME
+PASSWORD
+DBNAME
+
 
 Params
 	vars: The read values will be stored here.
@@ -114,8 +115,8 @@ int db_execute_query(const char *query) {
 
 /* Parse functions are defined in each tbl_*.c file.
    The order of this array must match the DB_TBL_TYPE enum order. */
-typedef void * (*tbl_mapper)(MYSQL_RES *);
-tbl_mapper tbl_map[] = { 
+typedef void * (*tbl_parser)(MYSQL_RES *);
+tbl_parser tbl_parsers[] = { 
 	parse_tbl_trade_order,
 	parse_tbl_user_currency
 };
@@ -123,12 +124,14 @@ tbl_mapper tbl_map[] = {
 /*
 Retrieves ALL records and columns for the given table. e.g.
 SELECT * from TABLENAME;
-While the return type is a void *, it will be a struct that's tied
-to the table definition and will have be accessible by column name,
-after being cast. e.g.:
-	data->id
-	data->created_at
-	...
+The return type is a void *, it points to a struct of the table 
+definition given by tbl_type, so data is accessible by column name.
+
+E.g. casting to the ST_TBL_TRADE_ORDER type:
+------------------------------------------------
+ST_TBL_TRADE_ORDER *trade_order = (ST_TBL_TRADE_ORDER *) db_fetch_data(...);
+trade_order->id
+trade_order->created_at
 
 Params
 	tbl_type: the enum representation of the table name
@@ -136,7 +139,7 @@ Params
 Returns
 	A void pointer to the retrieved data, this data needs to
 	be cast to its associated table struct.
-	If there is an error then it returns NULL.
+	Returns NULL on error.
 */
 void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 	void *data;
@@ -157,7 +160,7 @@ void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 	}
 
 	// Convert the raw SQL character data into its associated struct.
-	data = tbl_map[tbl_type](result);
+	data = tbl_parsers[tbl_type](result);
 
 	mysql_free_result(result);
 	return data;
@@ -166,7 +169,7 @@ void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 /*
 This is the same as db_fetch_data except an additional SQL
 conditional clause can be used. e.g.
-WHERE blah='blah' and id > 5 GROUP BY.. ORDER BY... ETC.
+WHERE name='bob' and id > 2 GROUP BY.. ORDER BY... ETC.
 
 Params
 	tbl_type: the enum representation of the table name
@@ -181,6 +184,11 @@ void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
 	void *data;
 	char query_str[1024];
 	MYSQL_RES *result;
+
+	if (!sql) {
+		fprintf(stderr, "Invalid SQL query (db_fetch_data_sql)\n");
+		return NULL;
+	}
 
 	if (!mysql_conn) 
 		return NULL;
@@ -198,16 +206,16 @@ void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
 	}
 
 	// Convert the raw SQL character data into its associated struct.
-	data = tbl_map[tbl_type](result);
-
+	// and get rid of the raw data.
+	data = tbl_parsers[tbl_type](result);
 	mysql_free_result(result);
 	return data;
 }
 
 /*
-Creates a timestamp recognized by the TIMESTAMP database field type.
-The timestamp will either be the current time, or the current time
-X number of weeks in the past.
+Creates a timestamp formatted like the TIMESTAMP database type.
+The created timestamp will either be the current time, or the 
+current time minus some number of weeks.
 
 Params
 	buffer: The timestamp is stored here.

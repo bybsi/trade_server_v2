@@ -158,8 +158,12 @@ static int init_service(ST_TRADE_SERVICE *service) {
 	// TODO - This price should come from redis current price.
 	for (int ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
 		read_price_source(service->price_sources[ticker_idx], &pp);
-		if (pp.price == 0)
+		if (pp.price == 0) {
+			logger_write(service->logger, 
+				"Could not load last price for TICKER: %s", 
+				tickers[ticker_idx]);
 			continue;
+		}
 		service->last_prices[ticker_idx].price = pp.price;
 	}
 
@@ -287,6 +291,9 @@ static unsigned short load_orders_helper(
 		snprintf(hash_key, 16, "%s%lu", id_prefix, current_result->id);
 		ht_order_entry = ht_put(ht_orders, hash_key, (void *) current_result);
 		if (ht_order_entry) {
+			// TODO maybe a DLL_NODE * should be returned 
+			// to set the ht_orders->ref field instead of
+			// using a callback.
 			rbt_insert(
 				rbt_orders,
 				current_result->price,
@@ -337,6 +344,7 @@ static unsigned short fill_order(ST_TBL_TRADE_ORDER *order) {
 	return 0;
 	// TODO run these in the same transaction as both need to succeed.
 	db_timestamp(order->filled_at, 0);
+	// TODO Need an order status of Pending or Failed/Retry
 	order->status = 'F';
 
 	snprintf(sql, 1024, "UPDATE %s SET status='%c' filled_at='%s' WHERE id=%lu",
@@ -367,6 +375,7 @@ static unsigned short fill_order(ST_TBL_TRADE_ORDER *order) {
 		return 0;
 	}
 
+	order->status = 'F';
 	return 1;
 }
 
@@ -420,8 +429,9 @@ Params
 static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsigned long long current_price) {
 	unsigned long long low_price, high_price;
 
-	// see above TODO. 
 	if (service->last_prices[ticker].price == 0)
+		// This will occur if there was an issue loading
+		// the initial last price in init_service() 'innit'
 		return;
 
 	if (current_price > service->last_prices[ticker].price) {
@@ -432,6 +442,8 @@ static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsi
 		low_price = current_price;
 	}
 	printf("Checking orders between: %lld and %lld\n", low_price, high_price);
+	// TODO these can each run in a new thread! 
+	// TODO means we need more than one SQL connection!
 	rbt_visit_nodes_in_range(
 		service->order_books[ticker].rbt_buy_orders,
 		low_price, // low node key
