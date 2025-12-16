@@ -68,10 +68,8 @@ void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback) (void *,
 	new_node->prev = dl_list->tail;
 	dl_list->tail->next = new_node;
 	dl_list->tail = new_node;
-	if (data_callback) {
-		//data_callback(HT_ENTRY *, DLL_NODE *);
+	if (data_callback) 
 		data_callback(data, new_node);
-	}
 }
 
 void dl_list_remove(DL_LIST *dl_list, DLL_NODE *node) {
