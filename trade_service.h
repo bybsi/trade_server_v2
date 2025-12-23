@@ -37,8 +37,6 @@ typedef struct st_price_point {
 
 // Main trade service structure
 typedef struct ST_TRADE_SERVICE {
-	unsigned short ticker_count;
-	
 	// Order books contain a buy and sell list which are
 	// red and black trees using price points for keys.
 	// Tree node data is a doubly linked list of orders

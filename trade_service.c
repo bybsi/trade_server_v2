@@ -9,6 +9,7 @@
 #include "database.h"
 #include "trade_service.h"
 #include "sse_server.h"
+#include "error.h"
 
 #define PORT 6262
 #define DATA_Q_SIZE 10
@@ -23,10 +24,13 @@
 
 #define BACKLOAD_WEEKS 12
 
-#define TICKER_ANDTHEN 0
-#define TICKER_FORIS4 1
-#define TICKER_SPARK 2
-#define TICKER_ZILBIAN 3
+enum ticker {
+	ANDTHEN = 0,
+	FORIS4,
+	SPARK,
+	ZILBIAN,
+	TICKER_COUNT
+};
 static const char *tickers[] = {
 	"ANDTHEN",
 	"FORIS4",
@@ -88,7 +92,7 @@ Returns
 	1 on success, 0 on failure.
 */
 static int load_price_sources(ST_TRADE_SERVICE *service) {
-	for (size_t i = 0; i < service->ticker_count; i++) {
+	for (size_t i = 0; i < TICKER_COUNT; i++) {
 		char filepath[256];
 		/* /var/data/filename */
 		snprintf(filepath, sizeof(filepath), "%s/%s0.points.10s", 
@@ -156,7 +160,7 @@ static int init_service(ST_TRADE_SERVICE *service) {
 		return 0;
 	
 	// TODO - This price should come from redis current price.
-	for (int ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+	for (int ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 		read_price_source(service->price_sources[ticker_idx], &pp);
 		if (pp.price == 0) {
 			logger_write(service->logger, 
@@ -219,7 +223,7 @@ Returns
 static unsigned short load_orders_all_tickers(ST_TRADE_SERVICE *service) {
 	unsigned short ticker_idx;
 	unsigned short result;
-	for (ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+	for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 		result = load_orders_helper(
 				'B', "ASC", ticker_idx, service->ht_orders,
 				&service->order_books[ticker_idx].rbt_buy_orders,
@@ -466,29 +470,31 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	unsigned short i;
 
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
-	if (!service) 
-		return NULL; // TODO memory error DEFINE
+	if (!service) {
+		ERROR_MEMORY("service");
+	}
 	service->datapoint_count = 0;
-	service->ticker_count = sizeof(tickers) / sizeof(tickers[0]) - 1;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
-	service->order_books = calloc(service->ticker_count, sizeof(ST_ORDER_BOOK));
-	if (!service->order_books)
-		return NULL; // TODO memory error DEFINE
-	service->last_prices = calloc(service->ticker_count, sizeof(ST_PRICE_POINT));
-	if (!service->last_prices)
-		return NULL; // TODO memory error DEFINE
-	for (i = 0; i < service->ticker_count; i++) {
+	service->order_books = calloc(TICKER_COUNT, sizeof(ST_ORDER_BOOK));
+	if (!service->order_books) {
+		ERROR_MEMORY("order books");
+	}
+	service->last_prices = calloc(TICKER_COUNT, sizeof(ST_PRICE_POINT));
+	if (!service->last_prices) {
+		ERROR_MEMORY("last prices");
+	}
+	for (i = 0; i < TICKER_COUNT; i++) {
 		// Initialize data structures to handle orders
 		service->order_books[i].rbt_buy_orders = rbt_init();
 		service->order_books[i].rbt_sell_orders = rbt_init();
 		service->last_prices[i].price = 0;
 		service->last_prices[i].flag = 0;
 	}
-	service->price_sources = calloc(service->ticker_count, sizeof(FILE*));
-	if (!service->price_sources)
-		return NULL; // TODO memory error DEFINE
-	
+	service->price_sources = calloc(TICKER_COUNT, sizeof(FILE*));
+	if (!service->price_sources) {
+		ERROR_MEMORY("price sources");
+	}
 	service->logger = logger_init("trade_service.log");
 	if (!service->logger)
 		return NULL;
@@ -514,7 +520,7 @@ void trade_service_destroy(ST_TRADE_SERVICE *service) {
 	if (!service) 
 		return;
 
-	for (size_t ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+	for (size_t ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 		
 		if (service->price_sources && service->price_sources[ticker_idx])
 			fclose(service->price_sources[ticker_idx]);
@@ -598,7 +604,7 @@ void *market_monitor(void *arg) {
 	ST_TRADE_SERVICE *service = (ST_TRADE_SERVICE*)arg;
 	ST_PRICE_POINT current_price = {0, 0};
 	while (service->running) {
-		for (ticker_idx = 0; ticker_idx < service->ticker_count; ticker_idx++) {
+		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 			read_price_source(service->price_sources[ticker_idx], &current_price);
 			if (!current_price.price) {
 				fprintf(stderr, 
