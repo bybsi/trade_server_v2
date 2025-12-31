@@ -200,16 +200,6 @@ void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 	((HT_ENTRY *)ht_node)->ref = dll_node;
 }
 
-// TODO #defines
-//print_tbl_trade_order((ST_TBL_TRADE_ORDER *) ((HT_ENTRY *)data)->value);
-//printf("next link: \n");
-//printf("\t");
-//DLL_NODE *next = ((DLL_NODE *)((HT_ENTRY *)data)->ref)->next;
-//if (next)
-//	print_tbl_trade_order(
-//		((ST_TBL_TRADE_ORDER *)((HT_ENTRY *)next->data)->value)
-//	);
-
 /*
 Loads the orders from the database for all trade tickers.
 
@@ -471,18 +461,18 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
 	if (!service) {
-		ERROR_MEMORY("service");
+		EXIT_OOM("service");
 	}
 	service->datapoint_count = 0;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
 	service->order_books = calloc(TICKER_COUNT, sizeof(ST_ORDER_BOOK));
 	if (!service->order_books) {
-		ERROR_MEMORY("order books");
+		EXIT_OOM("order books");
 	}
 	service->last_prices = calloc(TICKER_COUNT, sizeof(ST_PRICE_POINT));
 	if (!service->last_prices) {
-		ERROR_MEMORY("last prices");
+		EXIT_OOM("last prices");
 	}
 	for (i = 0; i < TICKER_COUNT; i++) {
 		// Initialize data structures to handle orders
@@ -493,7 +483,7 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 	}
 	service->price_sources = calloc(TICKER_COUNT, sizeof(FILE*));
 	if (!service->price_sources) {
-		ERROR_MEMORY("price sources");
+		EXIT_OOM("price sources");
 	}
 	service->logger = logger_init("trade_service.log");
 	if (!service->logger)
@@ -616,6 +606,7 @@ void *market_monitor(void *arg) {
 			process_fills(service, ticker_idx, current_price.price);
 			service->last_prices[ticker_idx].price = current_price.price;
 			service->last_prices[ticker_idx].flag = current_price.flag;
+
 		}
 		sleep(2); 
 	}
