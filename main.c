@@ -1,34 +1,57 @@
-#include "trade_service.h"
 #include <signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
-static TradeService* service = NULL;
+#include "trade_service.h"
+#include "sse_server.h"
 
+#define PORT 6262
+#define DATA_Q_SIZE 10
+
+/* TODO
 void handle_signal(int sig) {
-    if (service) {
-        trade_service_stop(service);
-    }
-    exit(0);
+	if (service) {
+		trade_service_stop(service);
+	}
+	exit(0);
 }
+*/
 
 int main(void) {
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
+	ST_SSE_SERVER *server;
+	ST_TRADE_SERVICE *service;
+	// TODO
+	//signal(SIGINT, handle_signal);
+	//signal(SIGTERM, handle_signal);
+	
+	server = sse_server_init(PORT, DATA_Q_SIZE);
+	if (!server) {
+		fprintf(stderr, "Could not initialize server.\n");
+		exit(255);
+	}
+	server_tid = sse_server_start(server);
+	
+	service = trade_service_init(server);
+	if (!trade_service_start(service)) {
+		fprintf(stderr, "Could not initialize trade service.\n");
+		// TODO signal stop SSE SERVER.
+		//sse_server_stop(server);
+		exit(255);
+	}
+	
+	printf("SSE server started. Listening on port " PORT "\n");
+	printf("Trade service started.\n");
 
-    service = trade_service_create();
-    if (!service) {
-        fprintf(stderr, "Failed to create trade service\n");
-        return 1;
-    }
+	while (1) {
+		// TODO
+		sleep(5);
+	}
 
-    if (!trade_service_start(service)) {
-        fprintf(stderr, "Failed to start trade service\n");
-        trade_service_destroy(service);
-        return 1;
-    }
+	return 0;
+}
 
-    while (1) {
-        sleep(1);
-    }
 
-    return 0;
-} 
+
+
+

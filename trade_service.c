@@ -368,6 +368,8 @@ static unsigned short fill_order(ST_TBL_TRADE_ORDER *order) {
 		logger_write(global_logger_ptr, "Unable to fill order: %lu", order->id);
 		return 0;
 	}
+			
+	//sse_server_queue_data(server, buffer);
 
 	order->status = 'F';
 	return 1;
@@ -438,6 +440,8 @@ static void process_fills(ST_TRADE_SERVICE *service, unsigned short ticker, unsi
 	printf("Checking orders between: %lld and %lld\n", low_price, high_price);
 	// TODO these can each run in a new thread! 
 	// TODO means we need more than one SQL connection!
+	// TODO maybe use a state saving mechanism to traverse
+	//  instead of using a callback.
 	rbt_visit_nodes_in_range(
 		service->order_books[ticker].rbt_buy_orders,
 		low_price, // low node key
@@ -456,7 +460,7 @@ Initializes the trade service instance.
 Returns
 	An ST_TRADE_SERVICE pointer or NULL on error.
 */
-ST_TRADE_SERVICE *trade_service_init(void) {
+ST_TRADE_SERVICE *trade_service_init(ST_SSE_SERVER *server) {
 	unsigned short i;
 
 	ST_TRADE_SERVICE *service = calloc(1, sizeof(ST_TRADE_SERVICE));
@@ -496,6 +500,8 @@ ST_TRADE_SERVICE *trade_service_init(void) {
 		trade_service_destroy(service);
 		return NULL;
 	}
+
+	service->server = server;
 
 	return service;
 }
@@ -606,7 +612,7 @@ void *market_monitor(void *arg) {
 			process_fills(service, ticker_idx, current_price.price);
 			service->last_prices[ticker_idx].price = current_price.price;
 			service->last_prices[ticker_idx].flag = current_price.flag;
-
+			//sse_server_queue_data(server, buffer);
 		}
 		sleep(2); 
 	}

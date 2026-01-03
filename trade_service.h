@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include "sse_server.h"
 #include "database.h"
 #include "rb_tree.h"
 #include "hashtable.h"
@@ -63,9 +64,10 @@ typedef struct ST_TRADE_SERVICE {
 	char last_order_read_time[TIMESTAMP_LEN];
 
 	redisContext *redis;
+	ST_SSE_SERVER *server;
 } ST_TRADE_SERVICE;
 
-ST_TRADE_SERVICE *trade_service_init(void);
+ST_TRADE_SERVICE *trade_service_init(ST_SSE_SERVER *server);
 void trade_service_destroy(ST_TRADE_SERVICE *service);
 int trade_service_start(ST_TRADE_SERVICE *service);
 void trade_service_stop(ST_TRADE_SERVICE *service);

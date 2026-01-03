@@ -8,6 +8,7 @@ Doubly linked list that behaves like a queue.
 #include <string.h>
 
 #include "dl_list.h"
+#include "error.h"
 
 /*
 Initializes the list.
