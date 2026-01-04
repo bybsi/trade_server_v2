@@ -7,25 +7,25 @@
 #include "database.h"
 
 void pf(void *data) {
-	print_tbl_trade_order((ST_TBL_TRADE_ORDER *) data);
+	print_tbl_trade_order((st_tbl_trade_order_t *) data);
 }
 
 void visit_list(void *list) {
-	DL_LIST *dll = (DL_LIST *) list;
-	DLL_NODE *cur = dll->head;
+	dl_list_t *dll = (dl_list_t *) list;
+	dll_node_t *cur = dll->head;
 
 	while (cur) {
 		if (cur->data)
-			print_tbl_trade_order((ST_TBL_TRADE_ORDER *)cur->data);
+			print_tbl_trade_order((st_tbl_trade_order_t *)cur->data);
 		cur = cur->next;
 	}
 }
 
 int main() {
-	ST_TBL_TRADE_ORDER *to_head, *to;
-	RBT_NODE *root;
-	RBT_NODE *root1;
-	RBT_NODE *node;
+	st_tbl_trade_order_t *to_head, *to;
+	rbt_node_t *root;
+	rbt_node_t *root1;
+	rbt_node_t *node;
 
 	if (!db_init())
 		exit(255);

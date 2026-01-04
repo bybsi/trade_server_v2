@@ -126,7 +126,7 @@ so data is accessible by column name.
 
 Example:
 ------------------------------------------------
-ST_TBL_TRADE_ORDER *trade_order = parse_tbl_trade_order( db_fetch_data(...) );
+st_tbl_trade_order_t *trade_order = parse_tbl_trade_order( db_fetch_data(...) );
 if (trade_order) {
 	trade_order->id
 	trade_order->created_at

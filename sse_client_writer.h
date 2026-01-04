@@ -18,7 +18,7 @@
 typedef struct client_data_node {
 	unsigned long long id;
 	char data[MAX_DATA_SEND_LEN];
-} ST_CLIENT_DATA_NODE;
+} st_client_data_node_t;
 
 typedef struct client_list_manager {
 	pthread_mutex_t lock;
@@ -27,28 +27,28 @@ typedef struct client_list_manager {
 	unsigned short last_client_insert_idx;
 	unsigned short last_data_read_idx;
 	unsigned short stop;
-	ST_CLIENT_DATA_NODE *data_queue;
+	st_client_data_node_t *data_queue;
 	unsigned short data_queue_size;
 	//REMOVE
 	unsigned short id;
 	pthread_t thread_id;
-} ST_CLIENT_LIST_MANAGER;
+} st_client_list_manager_t;
 
 typedef struct client_writer {
-	ST_CLIENT_LIST_MANAGER clm[NUM_CLIENT_LISTS];
+	st_client_list_manager_t clm[NUM_CLIENT_LISTS];
 	unsigned short round_robin_idx;
-	ST_CLIENT_DATA_NODE *data_queue;
+	st_client_data_node_t *data_queue;
 	unsigned short data_queue_size;
 	unsigned short last_data_write_idx;
-	ST_LOGGER *logger;
-} ST_CLIENT_WRITER;
+	st_logger_t *logger;
+} st_client_writer_t;
 
 int send_sse_event(int client_fd, const char *data);
-ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size);
-void client_writer_start(ST_CLIENT_WRITER *client_writer);
-void client_writer_stop(ST_CLIENT_WRITER *client_writer);
-void client_writer_destroy(ST_CLIENT_WRITER *client_writer);
-void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd);
-void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data);
+st_client_writer_t * client_writer_init(unsigned short data_queue_size);
+void client_writer_start(st_client_writer_t *client_writer);
+void client_writer_stop(st_client_writer_t *client_writer);
+void client_writer_destroy(st_client_writer_t *client_writer);
+void client_writer_add_client(st_client_writer_t *client_writer, int client_fd);
+void client_writer_queue_data(st_client_writer_t *client_writer, char *data);
 
 #endif // _SSE_CLIENT_WRITER_H_

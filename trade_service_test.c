@@ -5,7 +5,7 @@
 #include "trade_service.h"
 
 int main() {
-	ST_TRADE_SERVICE *service;
+	st_trade_service_t *service;
 
 	service = trade_service_init(NULL);
 

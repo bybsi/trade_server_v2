@@ -6,10 +6,10 @@
 typedef struct logger {
 	FILE *fh;
 	pthread_mutex_t lock;
-} ST_LOGGER;
+} st_logger_t;
 
-ST_LOGGER * logger_init(char *file_name);
-void logger_write(ST_LOGGER *logger, char *message, ...);
-void logger_close(ST_LOGGER *logger);
+st_logger_t * logger_init(char *file_name);
+void logger_write(st_logger_t *logger, char *message, ...);
+void logger_close(st_logger_t *logger);
 
 #endif // _LOGGER_H_

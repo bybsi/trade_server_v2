@@ -9,9 +9,9 @@ typedef struct tbl_user_currency {
 	unsigned long long zilbian;
 	unsigned long long spark;
 	struct tbl_user_currency *next;
-} ST_TBL_USER_CURRENCY;
+} st_tbl_user_currency_t;
 
-ST_TBL_USER_CURRENCY * parse_tbl_user_currency(MYSQL_RES *result);
-void free_user_currency(ST_TBL_USER_CURRENCY *head);
+st_tbl_user_currency_t * parse_tbl_user_currency(MYSQL_RES *result);
+void free_user_currency(st_tbl_user_currency_t *head);
 
 #endif

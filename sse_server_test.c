@@ -13,8 +13,8 @@
 int main(int argc, char *argv[]) {
 	int i;
 	pthread_t server_tid;
-	ST_CLIENT_WRITER *cw;
-	ST_SSE_SERVER *server;
+	st_client_writer_t *cw;
+	st_sse_server_t *server;
 	
 	char buffer[1024];
 	char *data[] = {

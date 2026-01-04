@@ -16,14 +16,14 @@ Params
 	file_name: the filename, not containing a path.
 
 Returns
-	A pointer to and ST_LOGGER struct.
+	A pointer to and st_logger_t struct.
 	NULL if there is an error.
 */
-ST_LOGGER * logger_init(char *file_name) {
+st_logger_t * logger_init(char *file_name) {
 	// TODO: rotating files
 	FILE *fh;
 	char filepath[128];
-	ST_LOGGER *logger = malloc(sizeof(ST_LOGGER)); 
+	st_logger_t *logger = malloc(sizeof(st_logger_t)); 
 
 	if (pthread_mutex_init(&logger->lock, NULL) != 0) {
 		fprintf(stderr, "Could not init logger mutex\n");
@@ -44,16 +44,16 @@ ST_LOGGER * logger_init(char *file_name) {
 }
 
 /*
-Writes to the log file that's attached to the given ST_LOGGER instance.
+Writes to the log file that's attached to the given st_logger_t instance.
 The printf() syntax and formatting can be used. e.g.
 logger_write(logger, "%s%d", chr_ptr, number);
 
 Params
-	logger: The ST_LOGGER instance.
+	logger: The st_logger_t instance.
 	message: The log message format string.
 	args: Optional variables to be applied to the format string.
 */
-void logger_write(ST_LOGGER *logger, char *message, ...) {
+void logger_write(st_logger_t *logger, char *message, ...) {
 	pthread_mutex_lock(&logger->lock);
 	if (logger->fh) { 
 		va_list args;
@@ -78,9 +78,9 @@ void logger_write(ST_LOGGER *logger, char *message, ...) {
 Closes the log file.
 
 Params
-	logger: The ST_LOGGER instance.
+	logger: The st_logger_t instance.
 */
-void logger_close(ST_LOGGER *logger) {
+void logger_close(st_logger_t *logger) {
 	pthread_mutex_lock(&logger->lock);
 	if (logger->fh) {
 		fclose(logger->fh);

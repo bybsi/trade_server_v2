@@ -18,15 +18,15 @@
 
 static int verbose = 0;
 // Global sentinel node for NIL (null) nodes
-RBT_NODE *NIL = NULL;
+rbt_node_t *NIL = NULL;
 
 void (*test_print_func) (void *) = NULL;
 void rbt_set_test_print_func(void (*ptr) (void *)) {
 	test_print_func = ptr;
 }
 
-RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
-	RBT_NODE *node = malloc(sizeof(RBT_NODE));
+rbt_node_t *rbt_new_node(unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
+	rbt_node_t *node = malloc(sizeof(rbt_node_t));
 	node->orders_list = dl_list_init(test_print_func);
 	dl_list_insert(node->orders_list, data, data_callback);
 	node->key = key;
@@ -37,8 +37,8 @@ RBT_NODE *rbt_new_node(unsigned long long key, void *data, void (*data_callback)
 	return node;
 }
 
-static void rotate_left(RBT_NODE **root, RBT_NODE *x) {
-	RBT_NODE *y = x->right;
+static void rotate_left(rbt_node_t **root, rbt_node_t *x) {
+	rbt_node_t *y = x->right;
 	x->right = y->left;
 	if (y->left != NIL) {
 		y->left->parent = x;
@@ -55,8 +55,8 @@ static void rotate_left(RBT_NODE **root, RBT_NODE *x) {
 	x->parent = y;
 }
 
-static void rotate_right(RBT_NODE **root, RBT_NODE *y) {
-	RBT_NODE *x = y->left;
+static void rotate_right(rbt_node_t **root, rbt_node_t *y) {
+	rbt_node_t *x = y->left;
 	y->left = x->right;
 	if (x->right != NIL) {
 		x->right->parent = y;
@@ -74,10 +74,10 @@ static void rotate_right(RBT_NODE **root, RBT_NODE *y) {
 }
 
 // Function to fix Red-Black Tree properties after insertion
-static void fix_up(RBT_NODE **root, RBT_NODE *z) {
+static void fix_up(rbt_node_t **root, rbt_node_t *z) {
 	while (z->parent->color == RED) {
 		if (z->parent == z->parent->parent->left) {
-			RBT_NODE *uncle = z->parent->parent->right;
+			rbt_node_t *uncle = z->parent->parent->right;
 			if (uncle->color == RED) {
 				// Uncle is red
 				z->parent->color = BLACK;
@@ -97,7 +97,7 @@ static void fix_up(RBT_NODE **root, RBT_NODE *z) {
 			}
 		} else {
 			// Symmetric cases for when parent is right child
-			RBT_NODE *uncle = z->parent->parent->left;
+			rbt_node_t *uncle = z->parent->parent->left;
 			if (uncle->color == RED) {
 				// Uncle is red
 				z->parent->color = BLACK;
@@ -120,11 +120,11 @@ static void fix_up(RBT_NODE **root, RBT_NODE *z) {
 	(*root)->color = BLACK;
 }
 
-void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
-//	RBT_NODE *new_node = rbt_new_node(key, data);
-	RBT_NODE *new_node;
-	RBT_NODE *search = NIL;
-	RBT_NODE *current = *root;
+void rbt_insert(rbt_node_t **root, unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node)) {
+//	rbt_node_t *new_node = rbt_new_node(key, data);
+	rbt_node_t *new_node;
+	rbt_node_t *search = NIL;
+	rbt_node_t *current = *root;
 
 	while (current != NIL) {
 		if (verbose)
@@ -171,7 +171,7 @@ void rbt_insert(RBT_NODE **root, unsigned long long key, void *data, void (*data
 		fix_up(root, new_node);
 }
 
-RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key) {
+rbt_node_t *rbt_find_nearest(rbt_node_t *node, unsigned long long key) {
 	if (!node)
 		return NULL;
 
@@ -189,7 +189,7 @@ RBT_NODE *rbt_find_nearest(RBT_NODE *node, unsigned long long key) {
 	}
 }
 
-void rbt_visit_nodes_in_range(RBT_NODE *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *)) {
+void rbt_visit_nodes_in_range(rbt_node_t *node, unsigned long long low_key, unsigned long long high_key, void (*visitor) (void *)) {
 	if (!node || node == NIL)
 		return;
 	
@@ -233,10 +233,10 @@ def flatten(root):
 			current.left = None
 		current = current.right
 */
-void rbt_inorder(RBT_NODE *node) {
+void rbt_inorder(rbt_node_t *node) {
 	// TODO use morris traversal
 	if (node != NIL) {
-		DLL_NODE *current; 
+		dll_node_t *current; 
 		rbt_inorder(node->left);
 
 		printf("\t%llu (%s)\n", node->key, (node->color == RED ? "RED" : "BLACK"));
@@ -253,9 +253,9 @@ void rbt_inorder(RBT_NODE *node) {
 // TODO destroy function
 // TODO delete function
 
-RBT_NODE * rbt_init() {
+rbt_node_t * rbt_init() {
 	if (!NIL) {
-		NIL = (RBT_NODE *)malloc(sizeof(RBT_NODE));
+		NIL = (rbt_node_t *)malloc(sizeof(rbt_node_t));
 		NIL->color = BLACK;
 		NIL->left = NULL;
 		NIL->right = NULL;

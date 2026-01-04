@@ -27,50 +27,50 @@
 
 // Order book structure for a single ticker
 typedef struct st_order_book {
-	RBT_NODE *rbt_buy_orders;
-	RBT_NODE *rbt_sell_orders;
-} ST_ORDER_BOOK;
+	rbt_node_t *rbt_buy_orders;
+	rbt_node_t *rbt_sell_orders;
+} st_order_book_t;
 
 typedef struct st_price_point {
 	unsigned long long price;
 	int flag;
-} ST_PRICE_POINT;
+} st_price_point_t;
 
 // Main trade service structure
-typedef struct ST_TRADE_SERVICE {
+typedef struct st_trade_service_t {
 	// Order books contain a buy and sell list which are
 	// red and black trees using price points for keys.
 	// Tree node data is a doubly linked list of orders
 	// at a given price point, ordered by priority,
 	// or the order they were placed.
-	// RBT_NODE -> DLL_NODE
-	ST_ORDER_BOOK *order_books;
+	// rbt_node_t -> dll_node_t
+	st_order_book_t *order_books;
 	// Quick access to cancel and delete orders
-	// Keys are the order id and data is a DLL_NODE
+	// Keys are the order id and data is a dll_node_t
 	// that contains the order as it's data.
-	// RBT_NODE -> DLL_NODE -> ORDER
-	HASHTABLE *ht_orders;
+	// rbt_node_t -> dll_node_t -> ORDER
+	hashtable_t *ht_orders;
 
 	FILE **price_sources;
-	ST_PRICE_POINT *last_prices;
+	st_price_point_t *last_prices;
 
 	pthread_t monitor_thread;
 
 	int running;
 	unsigned int datapoint_count;
 	// Logging
-	ST_LOGGER *logger;
+	st_logger_t *logger;
 
 	char last_order_read_time[TIMESTAMP_LEN];
 
 	redisContext *redis;
-	ST_SSE_SERVER *server;
-} ST_TRADE_SERVICE;
+	st_sse_server_t *server;
+} st_trade_service_t;
 
-ST_TRADE_SERVICE *trade_service_init(ST_SSE_SERVER *server);
-void trade_service_destroy(ST_TRADE_SERVICE *service);
-int trade_service_start(ST_TRADE_SERVICE *service);
-void trade_service_stop(ST_TRADE_SERVICE *service);
+st_trade_service_t *trade_service_init(st_sse_server_t *server);
+void trade_service_destroy(st_trade_service_t *service);
+int trade_service_start(st_trade_service_t *service);
+void trade_service_stop(st_trade_service_t *service);
 
 void *market_monitor(void *arg);
 

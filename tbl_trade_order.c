@@ -9,10 +9,10 @@
 #include <mysql/mysql.h>
 #include "tbl_trade_order.h"
 
-ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result) {
+st_tbl_trade_order_t * parse_tbl_trade_order(MYSQL_RES *result) {
 	char *end;
 	MYSQL_ROW row;
-	ST_TBL_TRADE_ORDER *head, *current; 
+	st_tbl_trade_order_t *head, *current; 
 	unsigned long tmp_ul;
 
 	if (!result) {
@@ -21,12 +21,12 @@ ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result) {
 	}
 
 	errno = 0;
-	head = malloc(sizeof(ST_TBL_TRADE_ORDER));
+	head = malloc(sizeof(st_tbl_trade_order_t));
 	head->next = NULL;
 	current = head;
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		// Build new node
-		struct tbl_trade_order *tto = malloc(sizeof(ST_TBL_TRADE_ORDER));
+		struct tbl_trade_order *tto = malloc(sizeof(st_tbl_trade_order_t));
 		tto->id      = strtoul(row[0], &end, 10);
 		// TODO library function for bounds checking conversion.
 		tto->user_id = (unsigned int) strtol(row[1], &end, 10);
@@ -56,8 +56,8 @@ ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result) {
 	return head;
 }
 
-void free_trade_order(ST_TBL_TRADE_ORDER *head) {
-	ST_TBL_TRADE_ORDER *next;
+void free_trade_order(st_tbl_trade_order_t *head) {
+	st_tbl_trade_order_t *next;
 	while (head) {
 		next = head->next;
 		free(head);
@@ -65,7 +65,7 @@ void free_trade_order(ST_TBL_TRADE_ORDER *head) {
 	}
 }
 
-void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to) {
+void print_tbl_trade_order(st_tbl_trade_order_t *to) {
 	printf("%lu,%u,%s,%c,%c,%llu,%s,%s\n",
 		to->id,
 		to->user_id,

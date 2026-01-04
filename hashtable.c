@@ -24,8 +24,8 @@ static size_t hash_function(const char* key, size_t capacity) {
 	return hash % capacity;
 }
 
-static HT_ENTRY* create_entry(const char* key, void* value) {
-	HT_ENTRY* entry = malloc(sizeof(HT_ENTRY));
+static ht_entry_t* create_entry(const char* key, void* value) {
+	ht_entry_t* entry = malloc(sizeof(ht_entry_t));
 	if (!entry) 
 		return NULL;
 
@@ -41,9 +41,9 @@ static HT_ENTRY* create_entry(const char* key, void* value) {
 	return entry;
 }
 
-static int resize_hashtable(HASHTABLE *ht, size_t new_capacity) {
+static int resize_hashtable(hashtable_t *ht, size_t new_capacity) {
 	size_t i, new_index;
-	HT_ENTRY** new_buckets = calloc(new_capacity, sizeof(HT_ENTRY*));
+	ht_entry_t** new_buckets = calloc(new_capacity, sizeof(ht_entry_t*));
 	if (!new_buckets) 
 		return 0;
 
@@ -60,15 +60,15 @@ static int resize_hashtable(HASHTABLE *ht, size_t new_capacity) {
 	return 1;
 }
 
-HASHTABLE* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
+hashtable_t* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
 	if (initial_capacity == 0) 
 		initial_capacity = INITIAL_CAPACITY;
 
-	HASHTABLE* ht = malloc(sizeof(HASHTABLE));
+	hashtable_t* ht = malloc(sizeof(hashtable_t));
 	if (!ht) 
 		return NULL;
 
-	ht->buckets = calloc(initial_capacity, sizeof(HT_ENTRY*));
+	ht->buckets = calloc(initial_capacity, sizeof(ht_entry_t*));
 	if (!ht->buckets) {
 		free(ht);
 		return NULL;
@@ -86,7 +86,7 @@ HASHTABLE* ht_init(size_t initial_capacity, void (*free_func)(void*)) {
 	return ht;
 }
 
-void ht_destroy(HASHTABLE* ht) {
+void ht_destroy(hashtable_t* ht) {
 	size_t i;
 	if (!ht) 
 		return;
@@ -110,7 +110,7 @@ void ht_destroy(HASHTABLE* ht) {
 	free(ht);
 }
 
-HT_ENTRY * ht_put(HASHTABLE* ht, const char* key, void* value) {
+ht_entry_t * ht_put(hashtable_t* ht, const char* key, void* value) {
 	if (!ht || !key) 
 		return NULL;
 
@@ -125,7 +125,7 @@ HT_ENTRY * ht_put(HASHTABLE* ht, const char* key, void* value) {
 
 	size_t index = hash_function(key, ht->capacity);
 	// TODO this is just ht_get;
-	HT_ENTRY* entry = ht->buckets[index];
+	ht_entry_t* entry = ht->buckets[index];
 
 	while (entry) {
 		if (strcmp(entry->key, key) == 0) {
@@ -138,7 +138,7 @@ HT_ENTRY * ht_put(HASHTABLE* ht, const char* key, void* value) {
 		entry = entry->next;
 	}
 
-	HT_ENTRY* new_entry = create_entry(key, value);
+	ht_entry_t* new_entry = create_entry(key, value);
 	if (!new_entry) {
 		pthread_mutex_unlock(&ht->lock);
 		return NULL;
@@ -152,14 +152,14 @@ HT_ENTRY * ht_put(HASHTABLE* ht, const char* key, void* value) {
 	return new_entry;
 }
 
-void* ht_get(HASHTABLE* ht, const char* key) {
+void* ht_get(hashtable_t* ht, const char* key) {
 	if (!ht || !key) 
 		return NULL;
 
 	pthread_mutex_lock(&ht->lock);
 	
 	size_t index = hash_function(key, ht->capacity);
-	HT_ENTRY* entry = ht->buckets[index];
+	ht_entry_t* entry = ht->buckets[index];
 	void* result = NULL;
 
 	while (entry) {
@@ -174,15 +174,15 @@ void* ht_get(HASHTABLE* ht, const char* key) {
 	return result;
 }
 
-void* ht_remove(HASHTABLE* ht, const char* key) {
+void* ht_remove(hashtable_t* ht, const char* key) {
 	if (!ht || !key) 
 		return NULL;
 
 	pthread_mutex_lock(&ht->lock);
 
 	size_t index = hash_function(key, ht->capacity);
-	HT_ENTRY* entry = ht->buckets[index];
-	HT_ENTRY* prev = NULL;
+	ht_entry_t* entry = ht->buckets[index];
+	ht_entry_t* prev = NULL;
 	void* result = NULL;
 
 	while (entry) {

@@ -52,7 +52,7 @@ static int send_sse_headers(int client_fd) {
 	return (bytes == (ssize_t)strlen(headers)) ? 0 : -1;
 }
 
-static void sse_server_destroy(ST_SSE_SERVER *server) {
+static void sse_server_destroy(st_sse_server_t *server) {
 	unsigned short i;
 	logger_write(server->logger, "sse_server_destroy called");
 	
@@ -65,12 +65,12 @@ static void sse_server_destroy(ST_SSE_SERVER *server) {
 
 }
 
-ST_SSE_SERVER * sse_server_init(
+st_sse_server_t * sse_server_init(
 	unsigned short port, 
 	unsigned short data_queue_size
 ){
 	unsigned short i;
-	ST_SSE_SERVER * server = malloc(sizeof(ST_SSE_SERVER));
+	st_sse_server_t * server = malloc(sizeof(st_sse_server_t));
 	server->client_writer = client_writer_init(data_queue_size);
 	if (!server->client_writer) {
 		printf("Could not initialize client_writer\n");
@@ -87,7 +87,7 @@ void *server_thread (void *server_vp) {
 	struct sigaction sa;
 	struct sockaddr_in address;
 	struct epoll_event event, stop_event, events[MAX_EVENTS];
-	ST_SSE_SERVER *server = (ST_SSE_SERVER *) server_vp;
+	st_sse_server_t *server = (st_sse_server_t *) server_vp;
 
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd < 0) {
@@ -242,18 +242,18 @@ void *server_thread (void *server_vp) {
 	return 0;
 } 
 
-pthread_t sse_server_start(ST_SSE_SERVER *server) {
+pthread_t sse_server_start(st_sse_server_t *server) {
 	pthread_t server_tid;
 	client_writer_start(server->client_writer);
 	pthread_create(&server_tid, NULL, server_thread, server);
 	return server_tid;
 }
 
-void sse_server_queue_data(ST_SSE_SERVER * server, char *data) {
+void sse_server_queue_data(st_sse_server_t * server, char *data) {
 	client_writer_queue_data(server->client_writer, data);
 }
 
-void sse_server_stop(ST_SSE_SERVER *server) {
+void sse_server_stop(st_sse_server_t *server) {
 	logger_write(server->logger, "sse_server_stop called");
 	raise(SIGTERM);
 }

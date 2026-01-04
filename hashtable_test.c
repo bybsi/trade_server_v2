@@ -16,7 +16,7 @@ static void htfree(void *data) {
 
 int main(int argc, char *argv[]) {
 	int i;
-	HASHTABLE *ht;
+	hashtable_t *ht;
 
 	//ht = ht_init(10000, NULL);
 	ht = ht_init(10000, NULL);

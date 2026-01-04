@@ -7,7 +7,7 @@
 
 int main(int argc, char *argv[]) {
 	int i;
-	ST_CLIENT_WRITER *cw;
+	st_client_writer_t *cw;
 	char *data[] = {
 		"data: HERE IS DATA STRING 1\n\n",
 		"data: HERE IS DATA STRING 2\n\n",

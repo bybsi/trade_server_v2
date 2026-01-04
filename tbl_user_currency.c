@@ -8,10 +8,10 @@
 #include <mysql/mysql.h>
 #include "tbl_user_currency.h"
 
-ST_TBL_USER_CURRENCY * parse_tbl_user_currency(MYSQL_RES *result) {
+st_tbl_user_currency_t * parse_tbl_user_currency(MYSQL_RES *result) {
 	char *end;
 	MYSQL_ROW row;
-	ST_TBL_USER_CURRENCY *head, *current; 
+	st_tbl_user_currency_t *head, *current; 
 	
 	if (!result) {
 		fprintf(stderr, "Parsing tbl_user_currency (NULL)\n");
@@ -19,12 +19,12 @@ ST_TBL_USER_CURRENCY * parse_tbl_user_currency(MYSQL_RES *result) {
 	}
 	
 	errno = 0;
-	head = malloc(sizeof(ST_TBL_USER_CURRENCY));
+	head = malloc(sizeof(st_tbl_user_currency_t));
 	head->next = NULL;
 	current = head;
 	while ((row = mysql_fetch_row(result)) != NULL) {
 		// Build new node
-		struct tbl_user_currency *uc = malloc(sizeof(ST_TBL_USER_CURRENCY));
+		struct tbl_user_currency *uc = malloc(sizeof(st_tbl_user_currency_t));
 		// TODO library function for bounds checking conversion.
 		uc->user_id = (unsigned int) strtoul(row[0], &end, 10);
 		uc->bybs    = strtoull(row[1], &end, 10);
@@ -43,8 +43,8 @@ ST_TBL_USER_CURRENCY * parse_tbl_user_currency(MYSQL_RES *result) {
 	return head;
 }
 
-void free_user_currency(ST_TBL_USER_CURRENCY *head) {
-	ST_TBL_USER_CURRENCY *next;
+void free_user_currency(st_tbl_user_currency_t *head) {
+	st_tbl_user_currency_t *next;
 	while (head) {
 		next = head->next;
 		free(head);

@@ -6,8 +6,8 @@
 
 int main(int argc, char *argv[]) {
 	void *data;
-	ST_TBL_TRADE_ORDER *to_head, *to;
-	ST_TBL_USER_CURRENCY *uc_head, *uc;
+	st_tbl_trade_order_t *to_head, *to;
+	st_tbl_user_currency_t *uc_head, *uc;
 
 	if (!db_init())
 		exit(255);

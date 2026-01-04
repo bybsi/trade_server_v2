@@ -19,8 +19,8 @@ Params
 Returns
 	A pointer to the list or NULL if allocation fails.
 */
-DL_LIST * dl_list_init(void (*print_func) (void*)) {
-	DL_LIST *dl_list = malloc(sizeof(DL_LIST));
+dl_list_t * dl_list_init(void (*print_func) (void*)) {
+	dl_list_t *dl_list = malloc(sizeof(dl_list_t));
 	if (!dl_list) {
 		fprintf(stderr, "Could not allocate dl_list\n");
 		return NULL;
@@ -41,8 +41,8 @@ Params
 Returns
 	A pointer to the list node or NULL if allocation fails.
 */
-DLL_NODE * dl_list_new_node(void *data) {
-	DLL_NODE *node = malloc(sizeof(DLL_NODE));
+dll_node_t * dl_list_new_node(void *data) {
+	dll_node_t *node = malloc(sizeof(dll_node_t));
 	if (!node) {
 		fprintf(stderr, "Could not allocate dl_list node\n");
 		return NULL;
@@ -61,11 +61,11 @@ Params
 	data: A pointer to the data to be inserted.
 	data_callback: Optional callback function.
 */
-void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback) (void *, void *)) {
+void dl_list_insert(dl_list_t *dl_list, void *data, void (*data_callback) (void *, void *)) {
 	if (!dl_list)
 		return;
 
-	DLL_NODE *new_node = dl_list_new_node(data);
+	dll_node_t *new_node = dl_list_new_node(data);
 	new_node->prev = dl_list->tail;
 	dl_list->tail->next = new_node;
 	dl_list->tail = new_node;
@@ -73,7 +73,7 @@ void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback) (void *,
 		data_callback(data, new_node);
 }
 
-void dl_list_remove(DL_LIST *dl_list, DLL_NODE *node) {
+void dl_list_remove(dl_list_t *dl_list, dll_node_t *node) {
 	// Currently the caller free's the data from the node,
 	// it is also pointed to by the hashtable.
 	if (!node)

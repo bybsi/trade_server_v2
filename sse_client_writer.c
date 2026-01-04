@@ -20,12 +20,12 @@ static int verbose = 1;
 Chooses an available client write thread.
 
 Params
-	client_writer: The ST_CLIENT_WRITER instance
+	client_writer: The st_client_writer_t instance
 
 Returns
 	A pointer to the client list manager being used by the thread.
 */
-static ST_CLIENT_LIST_MANAGER * client_writer_select_manager(ST_CLIENT_WRITER *client_writer) {
+static st_client_list_manager_t * client_writer_select_manager(st_client_writer_t *client_writer) {
 	if (client_writer->round_robin_idx == NUM_CLIENT_LISTS)
 		client_writer->round_robin_idx = 0;
 	return &client_writer->clm[client_writer->round_robin_idx++];
@@ -35,10 +35,10 @@ static ST_CLIENT_LIST_MANAGER * client_writer_select_manager(ST_CLIENT_WRITER *c
 The thread worker function used to write data to clients.
 
 It reads the most recent data from the shared data queue and
-sends it to all clients managed by the associated ST_CLIENT_LIST_MANAGER.
+sends it to all clients managed by the associated st_client_list_manager_t.
 
 Params
-	clm: pointer that needs to cast to an ST_CLIENT_LIST_MANAGER
+	clm: pointer that needs to cast to an st_client_list_manager_t
 
 */
 void *client_write_thread(void *clm) {
@@ -47,11 +47,11 @@ void *client_write_thread(void *clm) {
 	int *clients;
 	char send_buffer[MAX_DATA_SEND_LEN], log_file_name[64];
 
-	ST_LOGGER              *logger;
-	ST_CLIENT_LIST_MANAGER *clm_ptr;
-	ST_CLIENT_DATA_NODE    *data;
+	st_logger_t              *logger;
+	st_client_list_manager_t *clm_ptr;
+	st_client_data_node_t    *data;
 	
-	clm_ptr = (ST_CLIENT_LIST_MANAGER *) clm;
+	clm_ptr = (st_client_list_manager_t *) clm;
 	
 	snprintf(log_file_name, 64, "write_thread_%d.log", clm_ptr->id);
 	logger = logger_init(log_file_name);
@@ -117,17 +117,17 @@ Params
 	data_queue_size: The max capacity of the shared data queue.
 
 Returns
-	A pointer to the ST_CLIENT_WRITER instance.
+	A pointer to the st_client_writer_t instance.
 	NULL on error.
 */
-ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
+st_client_writer_t * client_writer_init(unsigned short data_queue_size) {
 	unsigned short i;
 	char log_file_name[64];
-	ST_CLIENT_WRITER *client_writer = malloc(sizeof(ST_CLIENT_WRITER));
+	st_client_writer_t *client_writer = malloc(sizeof(st_client_writer_t));
 	client_writer->round_robin_idx = 0;
 	client_writer->last_data_write_idx = 0;
 	client_writer->data_queue_size = data_queue_size;
-	client_writer->data_queue = malloc(data_queue_size * sizeof(ST_CLIENT_DATA_NODE));
+	client_writer->data_queue = malloc(data_queue_size * sizeof(st_client_data_node_t));
 	for (i = 0; i < data_queue_size; i++) {
 		client_writer->data_queue[i].id = 0;
 		client_writer->data_queue[i].data[0] = '\0';
@@ -162,9 +162,9 @@ ST_CLIENT_WRITER * client_writer_init(unsigned short data_queue_size) {
 Starts a worker thread to handle each client list.
 
 Params
-	client_writer: The ST_CLIENT_WRITER instance.
+	client_writer: The st_client_writer_t instance.
 */
-void client_writer_start(ST_CLIENT_WRITER *client_writer) {
+void client_writer_start(st_client_writer_t *client_writer) {
 	unsigned short i;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
 		pthread_create(&client_writer->clm[i].thread_id, NULL, client_write_thread, &client_writer->clm[i]);
@@ -175,9 +175,9 @@ void client_writer_start(ST_CLIENT_WRITER *client_writer) {
 Stops all client writers and waits for them to rejoin the main thread.
 
 Params
-	client_writer: The ST_CLIENT_WRITER instance.
+	client_writer: The st_client_writer_t instance.
 */
-void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
+void client_writer_stop(st_client_writer_t *client_writer) {
 	unsigned short i;
 	int *status;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {		
@@ -197,13 +197,13 @@ void client_writer_stop(ST_CLIENT_WRITER *client_writer) {
 Adds a newly conneted client to the next available client manager.
 
 Params
-	client_writer: the ST_CLIENT_WRITER instance.
+	client_writer: the st_client_writer_t instance.
 	client_fd: file descriptor of the newly connected client.
 */
-void client_writer_add_client(ST_CLIENT_WRITER *client_writer, int client_fd) {
+void client_writer_add_client(st_client_writer_t *client_writer, int client_fd) {
 	unsigned short i = 0;
 	static unsigned short capacity_logged = 0;
-	ST_CLIENT_LIST_MANAGER *clm = client_writer_select_manager(client_writer);
+	st_client_list_manager_t *clm = client_writer_select_manager(client_writer);
 
 	/*
 	// Sacrifice two slots for efficiency
@@ -238,11 +238,11 @@ Appends data to the shared data queue, which is read by the client write
 threads to send data to clients.
 
 Params
-	client_writer: The ST_CLIENT_WRITER instance.
+	client_writer: The st_client_writer_t instance.
 	data: The data to append to the queue.
 */
-void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data) {
-	ST_CLIENT_DATA_NODE *data_node;
+void client_writer_queue_data(st_client_writer_t *client_writer, char *data) {
+	st_client_data_node_t *data_node;
 	if (client_writer->last_data_write_idx == client_writer->data_queue_size)
 		client_writer->last_data_write_idx = 0;
 	
@@ -255,7 +255,7 @@ void client_writer_queue_data(ST_CLIENT_WRITER *client_writer, char *data) {
 	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';
 }
 
-void client_writer_destroy(ST_CLIENT_WRITER *client_writer) {
+void client_writer_destroy(st_client_writer_t *client_writer) {
 	free(client_writer->data_queue);
 	free(client_writer);
 }

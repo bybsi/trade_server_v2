@@ -19,8 +19,8 @@ void handle_signal(int sig) {
 */
 
 int main(void) {
-	ST_SSE_SERVER *server;
-	ST_TRADE_SERVICE *service;
+	st_sse_server_t *server;
+	st_trade_service_t *service;
 	// TODO
 	//signal(SIGINT, handle_signal);
 	//signal(SIGTERM, handle_signal);

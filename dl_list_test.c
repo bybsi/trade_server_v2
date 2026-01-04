@@ -4,8 +4,8 @@
 
 #include "dl_list.h"
 
-static void print_list(DL_LIST *dl) {
-	DLL_NODE *node;
+static void print_list(dl_list_t *dl) {
+	dll_node_t *node;
 	node = dl->head;
 	printf("-----------------\n");
 	while (node = node->next) {
@@ -14,12 +14,12 @@ static void print_list(DL_LIST *dl) {
 }
 
 int main() {
-	DLL_NODE *node;
+	dll_node_t *node;
 	char *data0 = strdup("HELLO 0");
 	char *data1 = strdup("HELLO 1");
 	char *data2 = strdup("HELLO 2");
 	char *data3 = strdup("HELLO 3");
-	DL_LIST *dl = dl_list_init(NULL);
+	dl_list_t *dl = dl_list_init(NULL);
 	dl_list_insert(dl, (void*)data0, NULL);
 	dl_list_insert(dl, (void*)data1, NULL);
 	dl_list_insert(dl, (void*)data2, NULL);

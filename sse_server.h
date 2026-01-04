@@ -10,13 +10,13 @@
 
 typedef struct sse_server {
 	unsigned short port;
-	ST_LOGGER *logger;
-	ST_CLIENT_WRITER *client_writer;
-} ST_SSE_SERVER;
+	st_logger_t *logger;
+	st_client_writer_t *client_writer;
+} st_sse_server_t;
 
-ST_SSE_SERVER * sse_server_init(unsigned short port, unsigned short data_queue_size);
-pthread_t sse_server_start(ST_SSE_SERVER *server);
-void sse_server_queue_data(ST_SSE_SERVER * server, char *data);
-void sse_server_stop(ST_SSE_SERVER *server);
+st_sse_server_t * sse_server_init(unsigned short port, unsigned short data_queue_size);
+pthread_t sse_server_start(st_sse_server_t *server);
+void sse_server_queue_data(st_sse_server_t * server, char *data);
+void sse_server_stop(st_sse_server_t *server);
 
 #endif // _SSE_SERVER_H_

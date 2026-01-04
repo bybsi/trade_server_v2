@@ -1,24 +1,24 @@
-#ifndef _DL_LIST_H_
-#define _DL_LIST_H_
+#ifndef _dl_list_t_H_
+#define _dl_list_t_H_
 
-typedef struct dl_list_node_t {
+typedef struct dll_node {
 	void *data;
-	struct dl_list_node_t *prev;
-	struct dl_list_node_t *next;
-} DLL_NODE;
+	struct dll_node *prev;
+	struct dll_node *next;
+} dll_node_t;
 
 typedef struct dl_list_t {
-	DLL_NODE *head;
-	DLL_NODE *tail;
-	DLL_NODE *iter;
+	dll_node_t *head;
+	dll_node_t *tail;
+	dll_node_t *iter;
 	void (*print_func) (void *);
-} DL_LIST;
+} dl_list_t;
 
 
 // TODO iterator
-DL_LIST * dl_list_init(void (*print_func) (void *));
-DLL_NODE *dl_list_new_node(void *data);
-void dl_list_insert(DL_LIST *dl_list, void *data, void (*data_callback)(void *data_node, void *dll_node));
-void dl_list_remove(DL_LIST *dl_list, DLL_NODE *node);
+dl_list_t * dl_list_init(void (*print_func) (void *));
+dll_node_t *dl_list_new_node(void *data);
+void dl_list_insert(dl_list_t *dl_list, void *data, void (*data_callback)(void *data_node, void *dll_node));
+void dl_list_remove(dl_list_t *dl_list, dll_node_t *node);
 
-#endif // _DL_LIST_H__
+#endif // _dl_list_t_H__

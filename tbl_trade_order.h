@@ -21,10 +21,10 @@ typedef struct tbl_trade_order {
 	char filled_at[TIMESTAMP_LEN];
 
 	struct tbl_trade_order *next;
-} ST_TBL_TRADE_ORDER;
+} st_tbl_trade_order_t;
 
-ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result);
-void free_trade_order(ST_TBL_TRADE_ORDER *head);
-void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to);
+st_tbl_trade_order_t * parse_tbl_trade_order(MYSQL_RES *result);
+void free_trade_order(st_tbl_trade_order_t *head);
+void print_tbl_trade_order(st_tbl_trade_order_t *to);
 
 #endif
