@@ -21,7 +21,6 @@ USERNAME
 PASSWORD
 DBNAME
 
-
 Params
 	vars: The read values will be stored here.
 
@@ -90,6 +89,11 @@ Disconnects the MySQL connection.
 void db_close() {
 	if (mysql_conn) {
 		mysql_close(mysql_conn);
+		// TODO
+		// Only call this after the last connection is deleted.
+		// e.g. at graceful shutdown.
+		// Currently this makes the leak checker happy (valgrind).
+		mysql_library_end();
 	}
 }
 
@@ -113,36 +117,29 @@ int db_execute_query(const char *query) {
 	return 1;
 }
 
-/* Parse functions are defined in each tbl_*.c file.
-   The order of this array must match the DB_TBL_TYPE enum order. */
-typedef void * (*tbl_parser)(MYSQL_RES *);
-tbl_parser tbl_parsers[] = { 
-	parse_tbl_trade_order,
-	parse_tbl_user_currency
-};
 
 /*
 Retrieves ALL records and columns for the given table. e.g.
 SELECT * from TABLENAME;
-The return type is a void *, it points to a struct of the table 
-definition given by tbl_type, so data is accessible by column name.
+The returned value must be passed into a tbl_parse* function
+so data is accessible by column name.
 
-E.g. casting to the ST_TBL_TRADE_ORDER type:
+Example:
 ------------------------------------------------
-ST_TBL_TRADE_ORDER *trade_order = (ST_TBL_TRADE_ORDER *) db_fetch_data(...);
-trade_order->id
-trade_order->created_at
+ST_TBL_TRADE_ORDER *trade_order = parse_tbl_trade_order( db_fetch_data(...) );
+if (trade_order) {
+	trade_order->id
+	trade_order->created_at
+}
 
 Params
 	tbl_type: the enum representation of the table name
 
 Returns
-	A void pointer to the retrieved data, this data needs to
-	be cast to its associated table struct.
-	Returns NULL on error.
+	A MYSQL_RES pointer to the retrieved data, this data needs to
+	passed to a tbl_parse* function
 */
-void* db_fetch_data(DB_TBL_TYPE tbl_type) {
-	void *data;
+MYSQL_RES * db_fetch_data(DB_TBL_TYPE tbl_type) {
 	MYSQL_RES *result;
 
 	if (!mysql_conn) 
@@ -159,11 +156,7 @@ void* db_fetch_data(DB_TBL_TYPE tbl_type) {
 		return NULL;
 	}
 
-	// Convert the raw SQL character data into its associated struct.
-	data = tbl_parsers[tbl_type](result);
-
-	mysql_free_result(result);
-	return data;
+	return result;
 }
 
 /*
@@ -176,11 +169,10 @@ Params
 	sql: The additional SQL clause
 
 Returns
-	A void pointer to the retrieved data, this data needs to
-	be cast to its associated table struct.
-	If there is an error then it returns NULL.
+	A MYSQL_RES pointer to the retrieved data, this data needs to
+	passed to a tbl_parse* function
 */
-void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
+MYSQL_RES * db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
 	void *data;
 	char query_str[1024];
 	MYSQL_RES *result;
@@ -205,11 +197,7 @@ void* db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql) {
 		return NULL;
 	}
 
-	// Convert the raw SQL character data into its associated struct.
-	// and get rid of the raw data.
-	data = tbl_parsers[tbl_type](result);
-	mysql_free_result(result);
-	return data;
+	return result;
 }
 
 /*

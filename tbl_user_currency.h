@@ -11,6 +11,7 @@ typedef struct tbl_user_currency {
 	struct tbl_user_currency *next;
 } ST_TBL_USER_CURRENCY;
 
-void * parse_tbl_user_currency(MYSQL_RES *result);
+ST_TBL_USER_CURRENCY * parse_tbl_user_currency(MYSQL_RES *result);
+void free_user_currency(ST_TBL_USER_CURRENCY *head);
 
 #endif

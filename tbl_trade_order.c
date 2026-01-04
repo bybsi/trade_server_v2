@@ -9,12 +9,17 @@
 #include <mysql/mysql.h>
 #include "tbl_trade_order.h"
 
-void * parse_tbl_trade_order(MYSQL_RES *result) {
+ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result) {
 	char *end;
 	MYSQL_ROW row;
 	ST_TBL_TRADE_ORDER *head, *current; 
 	unsigned long tmp_ul;
-	
+
+	if (!result) {
+		fprintf(stderr, "Parsing tbl_trade_order (NULL)\n");
+		return NULL;
+	}
+
 	errno = 0;
 	head = malloc(sizeof(ST_TBL_TRADE_ORDER));
 	head->next = NULL;
@@ -47,7 +52,17 @@ void * parse_tbl_trade_order(MYSQL_RES *result) {
 		current = tto;
 	}
 
-	return (void*) head;
+	mysql_free_result(result);
+	return head;
+}
+
+void free_trade_order(ST_TBL_TRADE_ORDER *head) {
+	ST_TBL_TRADE_ORDER *next;
+	while (head) {
+		next = head->next;
+		free(head);
+		head = next;
+	}
 }
 
 void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to) {

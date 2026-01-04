@@ -30,8 +30,8 @@ static char *database_query_str[] = {
 };
 
 void db_timestamp(char *buffer, unsigned short subtract_weeks);
-void *db_fetch_data(DB_TBL_TYPE tbl_type);
-void *db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql);
+MYSQL_RES * db_fetch_data(DB_TBL_TYPE tbl_type);
+MYSQL_RES * db_fetch_data_sql(DB_TBL_TYPE tbl_type, const char *sql);
 int db_execute_query(const char *query);
 int db_init();
 void db_close();

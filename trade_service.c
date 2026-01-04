@@ -267,7 +267,14 @@ static unsigned short load_orders_helper(
 		tickers[ticker_id],
 		last_order_read_time,
 		order_by);
-	result_head = (ST_TBL_TRADE_ORDER *) db_fetch_data_sql(TBL_TRADE_ORDER, sql);
+
+	result_head = parse_tbl_trade_order( db_fetch_data(TBL_TRADE_ORDER) );
+	if (!result_head) { 
+		// TODO error handling
+		fprintf(stderr, "Found no new orders\n");
+		return 1;
+	}
+	
 	// head is a dummy node ... should refactor this so there is no dummy
 	current_result = result_head->next;
 	while (current_result) {

@@ -23,7 +23,8 @@ typedef struct tbl_trade_order {
 	struct tbl_trade_order *next;
 } ST_TBL_TRADE_ORDER;
 
-void * parse_tbl_trade_order(MYSQL_RES *result);
+ST_TBL_TRADE_ORDER * parse_tbl_trade_order(MYSQL_RES *result);
+void free_trade_order(ST_TBL_TRADE_ORDER *head);
 void print_tbl_trade_order(ST_TBL_TRADE_ORDER *to);
 
 #endif
