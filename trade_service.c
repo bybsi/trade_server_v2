@@ -52,6 +52,9 @@ static unsigned short load_orders_helper(
 static void process_fills(st_trade_service_t *service, 
 	unsigned short ticker, unsigned long long current_price);
 static unsigned short fill_order(st_tbl_trade_order_t *order);
+void price_update_event(st_trade_service_t *service, char *data);
+float p_convert(unsigned long long price); 
+
 
 static void strtolower(char *str) {
 	for (unsigned short i = 0; *str; i++)
@@ -596,6 +599,11 @@ void trade_service_stop(st_trade_service_t *service) {
 	//trade_service_destroy()
 }
 
+// /event: BI\ndata:\n(xxxxxxxxxxxx.aaaaaa:0,){4}/
+//(6*TICKER_COUNT) + (4*TICKER_COUNT) + (12*TICKER_COUNT) + 1
+#define TMP_PRICE_STR_LEN 22
+//#define SSE_PRICE_DATA_LEN (TMP_PRICE_STR_LEN * TICKER_COUNT) + 1
+#define SSE_PRICE_DATA_LEN 89
 /*
 The market_monitor thread loop which is used by trade_service_start.
 
@@ -607,7 +615,11 @@ void *market_monitor(void *arg) {
 	unsigned short ticker_idx;
 	st_trade_service_t *service = (st_trade_service_t*)arg;
 	st_price_point_t current_price = {0, 0};
+	char sse_price_data[SSE_PRICE_DATA_LEN];
+	char tmp_str[TMP_PRICE_STR_LEN];
+
 	while (service->running) {
+		sse_price_data[0] = '\0';
 		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 			read_price_source(service->price_sources[ticker_idx], &current_price);
 			if (!current_price.price) {
@@ -616,15 +628,43 @@ void *market_monitor(void *arg) {
 					tickers[ticker_idx]);
 				continue;
 			}
-			update_redis_ticker_price(service->redis, ticker_idx, &current_price);
+
 			process_fills(service, ticker_idx, current_price.price);
+			/* price data TODO move into function*/
 			service->last_prices[ticker_idx].price = current_price.price;
 			service->last_prices[ticker_idx].flag = current_price.flag;
-			//sse_server_queue_data(server, buffer);
+			update_redis_ticker_price(
+				service->redis, ticker_idx, &current_price);
+			snprintf(tmp_str, TMP_PRICE_STR_LEN, "%.6f:%d", 
+				p_convert(current_price.price), current_price.flag);
+			strcat(sse_price_data, tmp_str);
+			if (ticker_idx != TICKER_COUNT - 1)
+				strcat(sse_price_data, ",");
+			/* */
 		}
+
+		price_update_event(service, sse_price_data);
+
 		sleep(2);
 		load_orders(service);
 	}
 	return NULL;
 }
+
+/* TODO it would be better if an event struct was used to pass to 
+ the sse_client_writer. That way additional buffers / mallocs can be avoided.
+ */
+void price_update_event(st_trade_service_t *service, char *data) {
+	if (!data)
+		return;
+	char buffer[SSE_PRICE_DATA_LEN + 18];
+	// Handle BI->Y in front end.
+	snprintf(buffer, SSE_PRICE_DATA_LEN + 18, "event: Y\ndata: %s\n\n", data);
+	sse_server_queue_data(service->server, buffer);	
+}
+
+float p_convert(unsigned long long price) {
+	return (float) (price / 100);
+}
+
 
