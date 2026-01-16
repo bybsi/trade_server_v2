@@ -27,6 +27,7 @@ typedef struct client_list_manager {
 	unsigned short last_client_insert_idx;
 	unsigned short last_data_read_idx;
 	unsigned short stop;
+	
 	st_client_data_node_t *data_queue;
 	unsigned short data_queue_size;
 	//REMOVE
@@ -37,6 +38,7 @@ typedef struct client_list_manager {
 typedef struct client_writer {
 	st_client_list_manager_t clm[NUM_CLIENT_LISTS];
 	unsigned short round_robin_idx;
+	pthread_mutex_t dq_lock;
 	st_client_data_node_t *data_queue;
 	unsigned short data_queue_size;
 	unsigned short last_data_write_idx;

@@ -53,6 +53,7 @@ typedef struct st_trade_service_t {
 
 	FILE **price_sources;
 	st_price_point_t *last_prices;
+	pthread_mutex_t last_price_lock;
 
 	pthread_t monitor_thread;
 

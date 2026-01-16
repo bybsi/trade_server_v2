@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <time.h>
 
 #include "hashtable.h"
 #include "rb_tree.h"
@@ -10,6 +11,7 @@
 #include "trade_service.h"
 #include "sse_server.h"
 #include "error.h"
+#include "currency.h"
 
 #define PORT 6262
 #define DATA_Q_SIZE 10
@@ -53,7 +55,9 @@ static void process_fills(st_trade_service_t *service,
 	unsigned short ticker, unsigned long long current_price);
 static unsigned short fill_order(st_tbl_trade_order_t *order);
 void price_update_event(st_trade_service_t *service, char *data);
+void build_simulated_order(unsigned long long price, char *data);
 float p_convert(unsigned long long price); 
+int r_between(int min, int max);
 
 
 static void strtolower(char *str) {
@@ -73,10 +77,10 @@ Params
 			#define TICKER_ANDTHEN 1 (see above)
 	pp: The price data to set the keys value to.
 */
-static void update_redis_ticker_price(redisContext *redis, unsigned short ticker_idx, st_price_point_t *pp) {
+static void update_redis_ticker_price(redisContext *redis, unsigned short ticker_idx, char *price_str) {
 
 	char cmd[128];
-	snprintf(cmd, 128, "set %s-price_v2 %.6f:%d", tickers[ticker_idx], (double)(pp->price/100), pp->flag);
+	snprintf(cmd, 128, "set %s-price_v2 %s", tickers[ticker_idx], price_str);
 	redis_cmd(redis, cmd);
 }
 
@@ -128,7 +132,7 @@ static void read_price_source(FILE *fh, st_price_point_t *price_point) {
 		fprintf(stderr, "Couldn't read price from price source.\n");
 		return;
 	}
-	price_point->price = (unsigned long long) (price * 100);
+	price_point->price = float_to_currency(price);
 	price_point->flag = 0;
 	if (fread(&flag_byte, 1, 1, fh) != 1) {
 		price_point->price = 0;
@@ -436,6 +440,7 @@ Params
 static void process_fills(st_trade_service_t *service, unsigned short ticker, unsigned long long current_price) {
 	unsigned long long low_price, high_price;
 
+	pthread_mutex_lock(&service->last_price_lock);
 	if (service->last_prices[ticker].price == 0)
 		// This will occur if there was an issue loading
 		// the initial last price in init_service() 'innit'
@@ -448,6 +453,8 @@ static void process_fills(st_trade_service_t *service, unsigned short ticker, un
 		high_price = service->last_prices[ticker].price;
 		low_price = current_price;
 	}
+	pthread_mutex_unlock(&service->last_price_lock);
+
 	printf("Checking orders between: %lld and %lld\n", low_price, high_price);
 	// TODO these can each run in a new thread! 
 	// TODO means we need more than one SQL connection!
@@ -478,6 +485,10 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 	if (!service) {
 		EXIT_OOM("service");
 	}
+	if (pthread_mutex_init(&service->last_price_lock, NULL) != 0) {
+		EXIT_OOM("price lock");
+	}
+
 	service->datapoint_count = 0;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
 	// Allocate arrays based on ticker count
@@ -604,6 +615,7 @@ void trade_service_stop(st_trade_service_t *service) {
 #define TMP_PRICE_STR_LEN 22
 //#define SSE_PRICE_DATA_LEN (TMP_PRICE_STR_LEN * TICKER_COUNT) + 1
 #define SSE_PRICE_DATA_LEN 89
+
 /*
 The market_monitor thread loop which is used by trade_service_start.
 
@@ -618,6 +630,8 @@ void *market_monitor(void *arg) {
 	char sse_price_data[SSE_PRICE_DATA_LEN];
 	char tmp_str[TMP_PRICE_STR_LEN];
 
+	srand(time(NULL));
+
 	while (service->running) {
 		sse_price_data[0] = '\0';
 		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
@@ -631,16 +645,17 @@ void *market_monitor(void *arg) {
 
 			process_fills(service, ticker_idx, current_price.price);
 			/* price data TODO move into function*/
+			pthread_mutex_lock(&service->last_price_lock);
 			service->last_prices[ticker_idx].price = current_price.price;
 			service->last_prices[ticker_idx].flag = current_price.flag;
-			update_redis_ticker_price(
-				service->redis, ticker_idx, &current_price);
-			snprintf(tmp_str, TMP_PRICE_STR_LEN, "%.6f:%d", 
-				p_convert(current_price.price), current_price.flag);
+			pthread_mutex_unlock(&service->last_price_lock);
+			currency_to_string_extra(tmp_str, TMP_PRICE_STR_LEN, current_price.price, current_price.flag);
+			update_redis_ticker_price(service->redis, ticker_idx, tmp_str);
+			//snprintf(tmp_str, TMP_PRICE_STR_LEN, "%.6f:%d", 
+			//	p_convert(current_price.price), current_price.flag);
 			strcat(sse_price_data, tmp_str);
 			if (ticker_idx != TICKER_COUNT - 1)
 				strcat(sse_price_data, ",");
-			/* */
 		}
 
 		price_update_event(service, sse_price_data);
@@ -651,9 +666,36 @@ void *market_monitor(void *arg) {
 	return NULL;
 }
 
-/* TODO it would be better if an event struct was used to pass to 
+#define SIM_ORDER_LEN 2048
+void *simulated_order_worker(void *arg) {
+	unsigned short ticker_idx;
+	char sim_order_data[SIM_ORDER_LEN];
+	st_trade_service_t *service = (st_trade_service_t*)arg;
+		
+	sim_order_data[0] = '{';
+	sim_order_data[1] = '\0';
+	
+	for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+		/* simulated order data */
+		strcat(sim_order_data, "\"");
+		strcat(sim_order_data, tickers[ticker_idx]);
+		strcat(sim_order_data, "\":[");
+		pthread_mutex_lock(&service->last_price_lock);
+		build_simulated_order(
+			service->last_prices[ticker_idx].price, sim_order_data);
+		pthread_mutex_unlock(&service->last_price_lock);
+		strcat(sim_order_data, "]");
+		if (ticker_idx != TICKER_COUNT - 1)
+			strcat(sim_order_data, ",");
+	}
+
+	strcat(sim_order_data, "}");
+}
+/* TODO it would be better if event structs were used to pass to 
  the sse_client_writer. That way additional buffers / mallocs can be avoided.
  */
+
+
 void price_update_event(st_trade_service_t *service, char *data) {
 	if (!data)
 		return;
@@ -663,8 +705,51 @@ void price_update_event(st_trade_service_t *service, char *data) {
 	sse_server_queue_data(service->server, buffer);	
 }
 
+#define NUM_ORDER_MULTIPLIERS 20
+float order_multipliers[NUM_ORDER_MULTIPLIERS] = {
+	0.02, 0.005, 0.004, 0.003, 0.002,
+	0.01, 0.02, 0.015, 0.011, 0.012,
+	0.013, 0.001, 0.002, 0.003, 0.004,
+	0.015, 0.011, 0.1, 0.05, 0.025
+};
+
+void build_simulated_order(unsigned long long price, char *data) {
+	int i, amount;
+	int rand_int = r_between(1, 5);
+	char buffer[64];
+	for (i = 0; i < rand_int; i++) {
+		snprintf(buffer, 64, "[%d,%.6f,%d,%.6f]",
+			r_between(2, 17),
+			currency_to_float(price - fractional_price(price, order_multipliers[r_between(0, NUM_ORDER_MULTIPLIERS - 1)])),
+			r_between(3, 15), 
+			currency_to_float(price + fractional_price(price, order_multipliers[r_between(0, NUM_ORDER_MULTIPLIERS - 1)])));
+		strcat(data, buffer);
+		if (i != rand_int - 1)
+			strcat(data, ",");
+	}
+}
+
+//rand_int = (rand() % 10) + 1; //1 and 10 inclusive
+
 float p_convert(unsigned long long price) {
 	return (float) (price / 100);
 }
+
+int r_between(int min, int max) {
+	return (rand() % (max - min + 1)) + min;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

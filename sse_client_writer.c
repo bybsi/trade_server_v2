@@ -127,6 +127,12 @@ st_client_writer_t * client_writer_init(unsigned short data_queue_size) {
 	client_writer->round_robin_idx = 0;
 	client_writer->last_data_write_idx = 0;
 	client_writer->data_queue_size = data_queue_size;
+
+	if (pthread_mutex_init(&client_writer->dq_lock, NULL) != 0) {
+		free(client_writer);
+		return NULL;
+	}
+
 	client_writer->data_queue = malloc(data_queue_size * sizeof(st_client_data_node_t));
 	for (i = 0; i < data_queue_size; i++) {
 		client_writer->data_queue[i].id = 0;
@@ -243,16 +249,19 @@ Params
 */
 void client_writer_queue_data(st_client_writer_t *client_writer, char *data) {
 	st_client_data_node_t *data_node;
+
+	pthread_mutex_lock(&client_writer->dq_lock);
+	
 	if (client_writer->last_data_write_idx == client_writer->data_queue_size)
 		client_writer->last_data_write_idx = 0;
-	
 	if (verbose)
 		printf("adding data to %d, %s", client_writer->last_data_write_idx, data);
-
 	data_node = &client_writer->data_queue[client_writer->last_data_write_idx++];
 	data_node->id = time(NULL);
 	memcpy(data_node->data, data, MAX_DATA_SEND_LEN);
 	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';
+	
+	pthread_mutex_unlock(&client_writer->dq_lock);
 }
 
 void client_writer_destroy(st_client_writer_t *client_writer) {
