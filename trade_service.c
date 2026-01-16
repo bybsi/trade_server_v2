@@ -268,7 +268,8 @@ static unsigned short load_orders_helper(
 		last_order_read_time,
 		order_by);
 
-	result_head = parse_tbl_trade_order( db_fetch_data(TBL_TRADE_ORDER) );
+	printf("%s\n", sql);
+	result_head = parse_tbl_trade_order( db_fetch_data_sql(TBL_TRADE_ORDER, sql) );
 	if (!result_head) { 
 		// TODO error handling
 		fprintf(stderr, "Found no new orders\n");
@@ -621,7 +622,8 @@ void *market_monitor(void *arg) {
 			service->last_prices[ticker_idx].flag = current_price.flag;
 			//sse_server_queue_data(server, buffer);
 		}
-		sleep(2); 
+		sleep(2);
+		load_orders(service);
 	}
 	return NULL;
 }
