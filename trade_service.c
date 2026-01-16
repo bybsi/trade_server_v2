@@ -56,7 +56,6 @@ static void process_fills(st_trade_service_t *service,
 static unsigned short fill_order(st_tbl_trade_order_t *order);
 void price_update_event(st_trade_service_t *service, char *data);
 void build_simulated_order(unsigned long long price, char *data);
-float p_convert(unsigned long long price); 
 int r_between(int min, int max);
 
 
@@ -651,8 +650,6 @@ void *market_monitor(void *arg) {
 			pthread_mutex_unlock(&service->last_price_lock);
 			currency_to_string_extra(tmp_str, TMP_PRICE_STR_LEN, current_price.price, current_price.flag);
 			update_redis_ticker_price(service->redis, ticker_idx, tmp_str);
-			//snprintf(tmp_str, TMP_PRICE_STR_LEN, "%.6f:%d", 
-			//	p_convert(current_price.price), current_price.flag);
 			strcat(sse_price_data, tmp_str);
 			if (ticker_idx != TICKER_COUNT - 1)
 				strcat(sse_price_data, ",");
@@ -730,10 +727,6 @@ void build_simulated_order(unsigned long long price, char *data) {
 }
 
 //rand_int = (rand() % 10) + 1; //1 and 10 inclusive
-
-float p_convert(unsigned long long price) {
-	return (float) (price / 100);
-}
 
 int r_between(int min, int max) {
 	return (rand() % (max - min + 1)) + min;
