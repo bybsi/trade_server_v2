@@ -24,10 +24,10 @@ servertest: sse_client_writer.c logger.c sse_server.c sse_server_test.c
 redistest: redis_test.c
 	$(CC) $(LDFLAGS) redis_test.c $(WITH_REDIS) -o redistest
 
-servicetest: database.c logger.c \
+servicetest: database.c logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \
 		trade_service.c trade_service_test.c $(DBTABLES) $(LIBDS)
-	$(CC) $(LDFLAGS) $(DSLINK) database.c logger.c \
+	$(CC) $(LDFLAGS) $(DSLINK) database.c logger.c currency.c \
 	redis.c sse_client_writer.c sse_server.c \
 	trade_service.c trade_service_test.c $(DBTABLES) \
 	-o servicetest \
@@ -35,10 +35,10 @@ servicetest: database.c logger.c \
 	$(WITH_REDIS) \
 	$(WITH_DS)
 
-tradeservice: database.c logger.c \
+tradeservice: database.c logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \
 		trade_service.c $(DBTABLES) $(LIBDS)
-	$(CC) $(LDFLAGS) database.c logger.c \
+	$(CC) $(LDFLAGS) database.c logger.c currency.c \
 	redis.c sse_client_writer.c sse_server.c \
 	trade_service.c $(DBTABLES) \
 	-o tradeservice \

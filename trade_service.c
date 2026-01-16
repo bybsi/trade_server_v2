@@ -691,8 +691,6 @@ void *simulated_order_worker(void *arg) {
 /* TODO it would be better if event structs were used to pass to 
  the sse_client_writer. That way additional buffers / mallocs can be avoided.
  */
-
-
 void price_update_event(st_trade_service_t *service, char *data) {
 	if (!data)
 		return;
