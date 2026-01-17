@@ -25,8 +25,24 @@
 #define BUY_IDX 0
 #define SELL_IDX 1
 
+enum ticker {
+	ANDTHEN = 0,
+	FORIS4,
+	SPARK,
+	ZILBIAN,
+	TICKER_COUNT
+};
+static const char *tickers[] = {
+	"ANDTHEN",
+	"FORIS4",
+	"SPARK",
+	"ZILBIAN",
+	NULL
+};
+
 // Order book structure for a single ticker
 typedef struct st_order_book {
+	// TODO free these in destroy function
 	rbt_node_t *rbt_buy_orders;
 	rbt_node_t *rbt_sell_orders;
 } st_order_book_t;
@@ -44,15 +60,16 @@ typedef struct st_trade_service_t {
 	// at a given price point, ordered by priority,
 	// or the order they were placed.
 	// rbt_node_t -> dll_node_t
-	st_order_book_t *order_books;
+	//st_order_book_t *order_books;
+	st_order_book_t order_books[TICKER_COUNT];
 	// Quick access to cancel and delete orders
 	// Keys are the order id and data is a dll_node_t
 	// that contains the order as it's data.
 	// rbt_node_t -> dll_node_t -> ORDER
 	hashtable_t *ht_orders;
 
-	FILE **price_sources;
-	st_price_point_t *last_prices;
+	FILE *price_sources[TICKER_COUNT];
+	st_price_point_t last_prices[TICKER_COUNT];
 	pthread_mutex_t last_price_lock;
 
 	pthread_t monitor_thread;

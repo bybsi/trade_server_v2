@@ -26,20 +26,6 @@
 
 #define BACKLOAD_WEEKS 12
 
-enum ticker {
-	ANDTHEN = 0,
-	FORIS4,
-	SPARK,
-	ZILBIAN,
-	TICKER_COUNT
-};
-static const char *tickers[] = {
-	"ANDTHEN",
-	"FORIS4",
-	"SPARK",
-	"ZILBIAN",
-	NULL
-};
 // Pointer to the logger instance for use inside of
 // certain callback functions that don't have access to the
 // service instance.
@@ -490,15 +476,6 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 
 	service->datapoint_count = 0;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
-	// Allocate arrays based on ticker count
-	service->order_books = calloc(TICKER_COUNT, sizeof(st_order_book_t));
-	if (!service->order_books) {
-		EXIT_OOM("order books");
-	}
-	service->last_prices = calloc(TICKER_COUNT, sizeof(st_price_point_t));
-	if (!service->last_prices) {
-		EXIT_OOM("last prices");
-	}
 	for (i = 0; i < TICKER_COUNT; i++) {
 		// Initialize data structures to handle orders
 		service->order_books[i].rbt_buy_orders = rbt_init();
@@ -506,22 +483,12 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 		service->last_prices[i].price = 0;
 		service->last_prices[i].flag = 0;
 	}
-	service->price_sources = calloc(TICKER_COUNT, sizeof(FILE*));
-	if (!service->price_sources) {
-		EXIT_OOM("price sources");
-	}
+	
 	service->logger = logger_init("trade_service.log");
 	if (!service->logger)
 		return NULL;
 	global_logger_ptr = service->logger;
 	
-	if (!service->order_books || 
-		!service->price_sources || 
-		!service->last_prices) {
-		trade_service_destroy(service);
-		return NULL;
-	}
-
 	service->server = server;
 
 	return service;
@@ -547,10 +514,6 @@ void trade_service_destroy(st_trade_service_t *service) {
 			// TODO book destroy
 		}
 	}
-
-	free(service->order_books);
-	free(service->price_sources);
-	free(service->last_prices);
 
 	if (service->logger) {
 		logger_close(service->logger);
