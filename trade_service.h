@@ -32,13 +32,6 @@ enum ticker {
 	ZILBIAN,
 	TICKER_COUNT
 };
-static const char *tickers[] = {
-	"ANDTHEN",
-	"FORIS4",
-	"SPARK",
-	"ZILBIAN",
-	NULL
-};
 
 // Order book structure for a single ticker
 typedef struct st_order_book {

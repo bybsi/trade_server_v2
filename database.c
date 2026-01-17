@@ -13,6 +13,15 @@
 
 // Single connection for now.
 MYSQL *mysql_conn = NULL;
+char *database_tbl_names[] = {
+	"tbl_trade_orders",
+	"tbl_user_currency"
+};
+char *database_query_str[] = {
+	"SELECT * FROM tbl_trade_orders",
+	"SELECT * FROM tbl_user_currency"
+};
+
 
 /*
 Reads the .dbconnect file format:

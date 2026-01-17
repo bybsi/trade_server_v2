@@ -20,14 +20,8 @@ typedef enum {
 	TBL_USER_CURRENCY
 } DB_TBL_TYPE;
 
-static char *database_tbl_names[] = {
-	"tbl_trade_orders",
-	"tbl_user_currency"
-};
-static char *database_query_str[] = {
-	"SELECT * FROM tbl_trade_orders",
-	"SELECT * FROM tbl_user_currency"
-};
+extern char *database_query_str[];
+extern char *database_tbl_names[];
 
 void db_timestamp(char *buffer, unsigned short subtract_weeks);
 MYSQL_RES * db_fetch_data(DB_TBL_TYPE tbl_type);

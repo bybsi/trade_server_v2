@@ -23,8 +23,15 @@
 #define STR_MAX_ORDERS "5000"
 // Closest prime to 25000 for hashtable distribution.
 #define HT_ORDER_CAPACITY 25013
-
 #define BACKLOAD_WEEKS 12
+
+static const char *tickers[] = {
+	"ANDTHEN",
+	"FORIS4",
+	"SPARK",
+	"ZILBIAN",
+	NULL
+};
 
 int exit_flag = 0;
 pthread_mutex_t exit_lock;

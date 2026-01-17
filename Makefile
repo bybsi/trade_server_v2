@@ -60,3 +60,4 @@ httest: hashtable_test.c $(LIBDS)
 
 clean:
 	rm -f dbtest dltest cwtest servertest httest redistest rbtest servicetest tradeservice
+
