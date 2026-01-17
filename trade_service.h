@@ -73,6 +73,7 @@ typedef struct st_trade_service_t {
 	pthread_mutex_t last_price_lock;
 
 	pthread_t monitor_thread;
+	pthread_t sim_order_thread;
 
 	int running;
 	unsigned int datapoint_count;
@@ -90,6 +91,8 @@ void trade_service_destroy(st_trade_service_t *service);
 int trade_service_start(st_trade_service_t *service);
 void trade_service_stop(st_trade_service_t *service);
 
+/* Thread workers */
 void *market_monitor(void *arg);
+void *simulated_order_worker(void *arg);
 
 #endif // _TRADE_SERVICE_H_

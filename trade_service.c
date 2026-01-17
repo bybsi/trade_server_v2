@@ -26,6 +26,18 @@
 
 #define BACKLOAD_WEEKS 12
 
+int exit_flag = 0;
+pthread_mutex_t exit_lock;
+void thread_check_exit_flag(char *thread_name) {
+	pthread_mutex_lock(&exit_lock);
+	if (exit_flag) {
+		pthread_mutex_unlock(&exit_lock);
+		printf("%s received exit flag.\n", thread_name);
+		pthread_exit(NULL);
+	}
+	pthread_mutex_unlock(&exit_lock);
+}
+
 // Pointer to the logger instance for use inside of
 // certain callback functions that don't have access to the
 // service instance.
@@ -465,14 +477,19 @@ Returns
 */
 st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 	unsigned short i;
-
+	
 	st_trade_service_t *service = calloc(1, sizeof(st_trade_service_t));
 	if (!service) {
 		EXIT_OOM("service");
 	}
-	if (pthread_mutex_init(&service->last_price_lock, NULL) != 0) {
-		EXIT_OOM("price lock");
-	}
+	
+	service->logger = logger_init("trade_service.log");
+	if (!service->logger)
+		return NULL;
+	global_logger_ptr = service->logger;
+	
+	pthread_mutex_init(&service->last_price_lock, NULL);
+	pthread_mutex_init(&exit_lock, NULL);
 
 	service->datapoint_count = 0;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
@@ -483,11 +500,6 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 		service->last_prices[i].price = 0;
 		service->last_prices[i].flag = 0;
 	}
-	
-	service->logger = logger_init("trade_service.log");
-	if (!service->logger)
-		return NULL;
-	global_logger_ptr = service->logger;
 	
 	service->server = server;
 
@@ -545,10 +557,14 @@ int trade_service_start(st_trade_service_t *service) {
 		return 0;
 	}
 
-	service->running = 1;
 	if (pthread_create(&service->monitor_thread, NULL, market_monitor, service) != 0) {
 		logger_write(service->logger, "Failed to create monitor thread");
-		service->running = 0;
+		return 0;
+	}
+	
+	if (pthread_create(&service->sim_order_thread, NULL, simulated_order_worker, service) != 0) {
+		logger_write(service->logger, "Failed to create monitor thread");
+		pthread_join(service->monitor_thread, NULL);
 		return 0;
 	}
 
@@ -566,8 +582,11 @@ void trade_service_stop(st_trade_service_t *service) {
 	if (!service) 
 		return;
 
-	service->running = 0;
+	pthread_mutex_lock(&exit_lock);
+	exit_flag = 1;
+	pthread_mutex_unlock(&exit_lock);
 	pthread_join(service->monitor_thread, NULL);
+	pthread_join(service->sim_order_thread, NULL);
 	logger_write(service->logger, "Trade service stopped");
 	//trade_service_destroy()
 }
@@ -579,8 +598,12 @@ void trade_service_stop(st_trade_service_t *service) {
 #define SSE_PRICE_DATA_LEN 89
 
 /*
-The market_monitor thread loop which is used by trade_service_start.
-
+The market_monitor thread loop which is initiated by calling
+trade_service_start. It is responsible for:
+	1) Keeping the current asset prices up to date.
+	2) Reading new orders into the data structures.
+	3) Filling orders.
+	4) Sending data to the client writer queue for front-end updates.
 Params
 	arg: This will be an st_trade_service_t struct.
 */
@@ -594,7 +617,9 @@ void *market_monitor(void *arg) {
 
 	srand(time(NULL));
 
-	while (service->running) {
+	while (1) {
+		thread_check_exit_flag("Market monitor");
+		
 		sse_price_data[0] = '\0';
 		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 			read_price_source(service->price_sources[ticker_idx], &current_price);
@@ -631,25 +656,29 @@ void *simulated_order_worker(void *arg) {
 	unsigned short ticker_idx;
 	char sim_order_data[SIM_ORDER_LEN];
 	st_trade_service_t *service = (st_trade_service_t*)arg;
-		
-	sim_order_data[0] = '{';
-	sim_order_data[1] = '\0';
 	
-	for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
-		/* simulated order data */
-		strcat(sim_order_data, "\"");
-		strcat(sim_order_data, tickers[ticker_idx]);
-		strcat(sim_order_data, "\":[");
-		pthread_mutex_lock(&service->last_price_lock);
-		build_simulated_order(
-			service->last_prices[ticker_idx].price, sim_order_data);
-		pthread_mutex_unlock(&service->last_price_lock);
-		strcat(sim_order_data, "]");
-		if (ticker_idx != TICKER_COUNT - 1)
-			strcat(sim_order_data, ",");
-	}
+	while (1) {
+		thread_check_exit_flag("Simulated order worker");
+		
+		sim_order_data[0] = '{';
+		sim_order_data[1] = '\0';
+		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+			/* simulated order data */
+			strcat(sim_order_data, "\"");
+			strcat(sim_order_data, tickers[ticker_idx]);
+			strcat(sim_order_data, "\":[");
+			pthread_mutex_lock(&service->last_price_lock);
+			build_simulated_order(
+				service->last_prices[ticker_idx].price, sim_order_data);
+			pthread_mutex_unlock(&service->last_price_lock);
+			strcat(sim_order_data, "]");
+			if (ticker_idx != TICKER_COUNT - 1)
+				strcat(sim_order_data, ",");
+		}
+		strcat(sim_order_data, "}");
 
-	strcat(sim_order_data, "}");
+		sleep(3);
+	}
 }
 /* TODO it would be better if event structs were used to pass to 
  the sse_client_writer. That way additional buffers / mallocs can be avoided.
