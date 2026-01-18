@@ -17,21 +17,21 @@ DSLINK := -Wl,-rpath='.' -L./data_structures -I./data_structures
 dbtest: $(DB) dbtest.c
 	$(CC) $(LDFLAGS) $(DBI) $(DB) dbtest.c  -o dbtest $(WITH_MYSQL)
 
-cwtest: sse_client_writer.c sse_client_writer_test.c logger.c
-	$(CC) $(LDFLAGS) sse_client_writer.c sse_client_writer_test.c logger.c -o cwtest
+cwtest: sse_client_writer.c test/sse_client_writer_test.c logger.c
+	$(CC) $(LDFLAGS) sse_client_writer.c test/sse_client_writer_test.c logger.c -o cwtest
 
-servertest: sse_client_writer.c logger.c sse_server.c sse_server_test.c
-	$(CC) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c sse_server_test.c -o servertest
+servertest: sse_client_writer.c logger.c sse_server.c test/sse_server_test.c
+	$(CC) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c test/sse_server_test.c -o servertest
 
-redistest: redis_test.c
-	$(CC) $(LDFLAGS) redis_test.c $(WITH_REDIS) -o redistest
+redistest: test/redis_test.c
+	$(CC) $(LDFLAGS) test/redis_test.c $(WITH_REDIS) -o redistest
 
 servicetest: $(DB) logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \
-		trade_service.c trade_service_test.c $(LIBDS)
+		trade_service.c test/trade_service_test.c $(LIBDS)
 	$(CC) $(LDFLAGS) $(DSLINK) $(DBI) $(DB) logger.c currency.c \
 	redis.c sse_client_writer.c sse_server.c \
-	trade_service.c trade_service_test.c  \
+	trade_service.c test/trade_service_test.c  \
 	-o servicetest \
 	$(WITH_MYSQL) \
 	$(WITH_REDIS) \
@@ -50,15 +50,15 @@ tradeservice: $(DB) logger.c currency.c \
 
 test: dltest httest rbtest redistest servertest servicetest
 
-rbtest: rb_tree_test.c $(DB) $(LIBDS)
-	$(CC) $(LDFLAGS) $(DSLINK) rb_tree_test.c $(DBI) $(DB) -o rbtest $(WITH_MYSQL) $(WITH_DS)
+rbtest: test/rb_tree_test.c $(DB) $(LIBDS)
+	$(CC) $(LDFLAGS) $(DSLINK) test/rb_tree_test.c $(DBI) $(DB) -o rbtest $(WITH_MYSQL) $(WITH_DS)
 	cp $(LIBDS) .
 
-dltest: dl_list_test.c $(LIBDS)
-	$(CC) $(LDFLAGS) $(DSLINK) dl_list_test.c -o dltest $(WITH_DS)
+dltest: test/dl_list_test.c $(LIBDS)
+	$(CC) $(LDFLAGS) $(DSLINK) test/dl_list_test.c -o dltest $(WITH_DS)
 
-httest: hashtable_test.c $(LIBDS)
-	$(CC) $(LDFLAGS) $(DSLINK) hashtable_test.c -o httest $(WITH_DS)
+httest: test/hashtable_test.c $(LIBDS)
+	$(CC) $(LDFLAGS) $(DSLINK) test/hashtable_test.c -o httest $(WITH_DS)
 
 clean:
 	rm -f dbtest dltest cwtest servertest httest redistest rbtest servicetest tradeservice
