@@ -35,7 +35,7 @@ servicetest: $(DB) logger.c currency.c \
 	-o servicetest \
 	$(WITH_MYSQL) \
 	$(WITH_REDIS) \
-	$(WITH_DS)
+	$(WITH_DS) -I.
 
 tradeservice: $(DB) logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \

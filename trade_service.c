@@ -59,7 +59,6 @@ static unsigned short load_orders_helper(
 static void process_fills(st_trade_service_t *service, 
 	unsigned short ticker, unsigned long long current_price);
 static unsigned short fill_order(st_tbl_trade_order_t *order);
-void price_update_event(st_trade_service_t *service, char *data);
 void build_simulated_order(unsigned long long price, char *data);
 int r_between(int min, int max);
 
@@ -628,6 +627,7 @@ void *market_monitor(void *arg) {
 		thread_check_exit_flag("Market monitor");
 		
 		sse_price_data[0] = '\0';
+		strcat(sse_price_data, "event: Y\ndata: ");
 		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 			read_price_source(service->price_sources[ticker_idx], &current_price);
 			if (!current_price.price) {
@@ -650,8 +650,8 @@ void *market_monitor(void *arg) {
 				strcat(sse_price_data, ",");
 		}
 
-		price_update_event(service, sse_price_data);
-
+		strcat(sse_price_data, "\n\n");
+		sse_server_queue_data(service->server, sse_price_data);	
 		sleep(2);
 		load_orders(service);
 	}
@@ -667,8 +667,8 @@ void *simulated_order_worker(void *arg) {
 	while (1) {
 		thread_check_exit_flag("Simulated order worker");
 		
-		sim_order_data[0] = '{';
-		sim_order_data[1] = '\0';
+		sim_order_data[0] = '\0';
+		strcat(sim_order_data, "event: BU\ndata: ");
 		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
 			/* simulated order data */
 			strcat(sim_order_data, "\"");
@@ -682,21 +682,10 @@ void *simulated_order_worker(void *arg) {
 			if (ticker_idx != TICKER_COUNT - 1)
 				strcat(sim_order_data, ",");
 		}
-		strcat(sim_order_data, "}");
-
+		strcat(sim_order_data, "}\n\n");
+		sse_server_queue_data(service->server, sim_order_data);	
 		sleep(3);
 	}
-}
-/* TODO it would be better if event structs were used to pass to 
- the sse_client_writer. That way additional buffers / mallocs can be avoided.
- */
-void price_update_event(st_trade_service_t *service, char *data) {
-	if (!data)
-		return;
-	char buffer[SSE_PRICE_DATA_LEN + 18];
-	// Handle BI->Y in front end.
-	snprintf(buffer, SSE_PRICE_DATA_LEN + 18, "event: Y\ndata: %s\n\n", data);
-	sse_server_queue_data(service->server, buffer);	
 }
 
 #define NUM_ORDER_MULTIPLIERS 20
