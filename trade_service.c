@@ -25,6 +25,10 @@
 #define HT_ORDER_CAPACITY 25013
 #define BACKLOAD_WEEKS 12
 
+// Pointer to the logger instance for use inside of
+// certain callback functions that don't have access to the
+// service instance.
+static st_logger_t *global_logger_ptr = NULL;
 static const char *tickers[] = {
 	"ANDTHEN",
 	"FORIS4",
@@ -32,6 +36,13 @@ static const char *tickers[] = {
 	"ZILBIAN",
 	NULL
 };
+unsigned short get_ticker_idx(char *ticker_name) {
+	unsigned short i;
+	for (i = 0; i < NUM_TICKERS; i++)
+		if (strcmp(tickers[i], ticker_name) == 0)
+			return i;
+	return -1;
+}
 
 int exit_flag = 0;
 pthread_mutex_t exit_lock;
@@ -45,10 +56,29 @@ void thread_check_exit_flag(char *thread_name) {
 	pthread_mutex_unlock(&exit_lock);
 }
 
-// Pointer to the logger instance for use inside of
-// certain callback functions that don't have access to the
-// service instance.
-static st_logger_t *global_logger_ptr = NULL;
+/* 
+For batching fill data and sending it to the event stream. 
+Data is dispatched every FILL_DISPATCH_INTERVAL seconds or 
+when FILL_CAPACITY is reached.   
+*/
+#define FILL_CAPACITY 10
+#define FILL_DISPATCH_INTERVAL 2 // seconds
+struct {
+	char fills[NUM_TICKERS][2048];
+	unsigned short fill_count;
+} fill_data = { {"","","",""}, 0};
+/*
+	.fills = {{""},{""},{""},{""}}, 
+	.fill_count = 0
+};
+*/
+//pthread_t fill_data_thread;
+//pthread_mutex_t fill_data_lock;
+unsigned short update_fill_data(st_tbl_trade_order_t * order); 
+time_t dispatch_fill_data(st_trade_service_t *service);
+time_t last_fill_dispatch_time;
+//void *fill_data_dispatcher(void *arg);
+/* ------ */
 
 static unsigned short load_orders(st_trade_service_t *service);
 static unsigned short load_orders_all_tickers(st_trade_service_t *service);
@@ -102,7 +132,7 @@ Returns
 	1 on success, 0 on failure.
 */
 static int load_price_sources(st_trade_service_t *service) {
-	for (size_t i = 0; i < TICKER_COUNT; i++) {
+	for (size_t i = 0; i < NUM_TICKERS; i++) {
 		char filepath[256];
 		/* /var/data/filename */
 		snprintf(filepath, sizeof(filepath), "%s/%s0.points.10s", 
@@ -170,7 +200,7 @@ static int init_service(st_trade_service_t *service) {
 		return 0;
 	
 	// TODO - This price should come from redis current price.
-	for (int ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+	for (int ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 		read_price_source(service->price_sources[ticker_idx], &pp);
 		if (pp.price == 0) {
 			logger_write(service->logger, 
@@ -223,7 +253,7 @@ Returns
 static unsigned short load_orders_all_tickers(st_trade_service_t *service) {
 	unsigned short ticker_idx;
 	unsigned short result;
-	for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+	for (ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 		result = load_orders_helper(
 				'B', "ASC", ticker_idx, service->ht_orders,
 				&service->order_books[ticker_idx].rbt_buy_orders,
@@ -351,6 +381,7 @@ Params
 	order: A pointer to the order to fill.
 */
 static unsigned short fill_order(st_tbl_trade_order_t *order) {
+	time_t now;
 	char sql[1024];
 	char ticker[TICKER_LEN];
 	return 0;
@@ -386,10 +417,18 @@ static unsigned short fill_order(st_tbl_trade_order_t *order) {
 		logger_write(global_logger_ptr, "Unable to fill order: %lu", order->id);
 		return 0;
 	}
-			
-	//sse_server_queue_data(server, buffer);
-
 	order->status = 'F';
+	
+	/* TODO move into function) */
+	if (!update_fill_data(order)) {
+		unsigned short junk;
+		//last_fill_dispatch_time = dispatch_fill_data(service);//TODO service
+		junk = update_fill_data(order);
+	} else if (time(NULL) > last_fill_dispatch_time + 2) {
+		// Current time is greater than next dispatch time
+		//last_fill_dispatch_time = dispatch_fill_data(service); // TODO service
+	}
+
 	return 1;
 }
 
@@ -496,10 +535,11 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 	
 	pthread_mutex_init(&service->last_price_lock, NULL);
 	pthread_mutex_init(&exit_lock, NULL);
+	//pthread_mutex_init(&fill_data_lock, NULL);
 
 	service->datapoint_count = 0;
 	service->ht_orders = ht_init(HT_ORDER_CAPACITY, NULL);
-	for (i = 0; i < TICKER_COUNT; i++) {
+	for (i = 0; i < NUM_TICKERS; i++) {
 		// Initialize data structures to handle orders
 		service->order_books[i].rbt_buy_orders = rbt_init();
 		service->order_books[i].rbt_sell_orders = rbt_init();
@@ -508,6 +548,7 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 	}
 	
 	service->server = server;
+	last_fill_dispatch_time = time(NULL);
 
 	return service;
 }
@@ -522,7 +563,7 @@ void trade_service_destroy(st_trade_service_t *service) {
 	if (!service) 
 		return;
 
-	for (size_t ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+	for (size_t ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 		
 		if (service->price_sources && service->price_sources[ticker_idx])
 			fclose(service->price_sources[ticker_idx]);
@@ -573,7 +614,15 @@ int trade_service_start(st_trade_service_t *service) {
 		pthread_join(service->monitor_thread, NULL);
 		return 0;
 	}
-
+	
+	/*
+	if (pthread_create(&fill_data_thread, NULL, fill_data_dispatcher, service) != 0) {
+		logger_write(service->logger, "Failed to create fill data dispatcher thread");
+		pthread_join(service->monitor_thread, NULL);
+		pthread_join(service->sim_order_thread, NULL);
+		return 0;
+	}
+	*/
 	
 	return 1;
 }
@@ -598,9 +647,9 @@ void trade_service_stop(st_trade_service_t *service) {
 }
 
 // /event: BI\ndata:\n(xxxxxxxxxxxx.aaaaaa:0,){4}/
-//(6*TICKER_COUNT) + (4*TICKER_COUNT) + (12*TICKER_COUNT) + 1
+//(6*NUM_TICKERS) + (4*NUM_TICKERS) + (12*NUM_TICKERS) + 1
 #define TMP_PRICE_STR_LEN 22
-//#define SSE_PRICE_DATA_LEN (TMP_PRICE_STR_LEN * TICKER_COUNT) + 1
+//#define SSE_PRICE_DATA_LEN (TMP_PRICE_STR_LEN * NUM_TICKERS) + 1
 #define SSE_PRICE_DATA_LEN 89
 
 /*
@@ -628,7 +677,7 @@ void *market_monitor(void *arg) {
 		
 		sse_price_data[0] = '\0';
 		strcat(sse_price_data, "event: Y\ndata: ");
-		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+		for (ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 			read_price_source(service->price_sources[ticker_idx], &current_price);
 			if (!current_price.price) {
 				fprintf(stderr, 
@@ -646,7 +695,7 @@ void *market_monitor(void *arg) {
 			currency_to_string_extra(tmp_str, TMP_PRICE_STR_LEN, current_price.price, current_price.flag);
 			update_redis_ticker_price(service->redis, ticker_idx, tmp_str);
 			strcat(sse_price_data, tmp_str);
-			if (ticker_idx != TICKER_COUNT - 1)
+			if (ticker_idx != NUM_TICKERS - 1)
 				strcat(sse_price_data, ",");
 		}
 
@@ -669,7 +718,7 @@ void *simulated_order_worker(void *arg) {
 		
 		sim_order_data[0] = '\0';
 		strcat(sim_order_data, "event: BU\ndata: ");
-		for (ticker_idx = 0; ticker_idx < TICKER_COUNT; ticker_idx++) {
+		for (ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 			/* simulated order data */
 			strcat(sim_order_data, "\"");
 			strcat(sim_order_data, tickers[ticker_idx]);
@@ -679,7 +728,7 @@ void *simulated_order_worker(void *arg) {
 				service->last_prices[ticker_idx].price, sim_order_data);
 			pthread_mutex_unlock(&service->last_price_lock);
 			strcat(sim_order_data, "]");
-			if (ticker_idx != TICKER_COUNT - 1)
+			if (ticker_idx != NUM_TICKERS - 1)
 				strcat(sim_order_data, ",");
 		}
 		strcat(sim_order_data, "}\n\n");
@@ -712,6 +761,56 @@ void build_simulated_order(unsigned long long price, char *data) {
 	}
 }
 
+unsigned short update_fill_data(st_tbl_trade_order_t * order) {
+	char fill_str[128];
+	unsigned short ticker_idx = get_ticker_idx(order->ticker);
+	snprintf(fill_str, 128, "[%u,\"%c\",%u,%llu,%s],",
+		order->user_id,
+		order->side,
+		order->amount,
+		order->price,
+		order->filled_at + 11);
+	if (strlen(fill_str) + strlen(fill_data.fills[ticker_idx]) >= 2048)
+		return 0;
+	
+	strcat(fill_data.fills[ticker_idx], fill_str);
+	fill_data.fill_count++;
+	return 1;
+}
+
+char fill_data_buffer[2048*4 + 20*NUM_TICKERS];
+time_t dispatch_fill_data(st_trade_service_t *service) {
+	unsigned short i, len;
+	memcpy(fill_data_buffer, (char[]){'{', '\0'}, 2);
+	for (i = 0; i < NUM_TICKERS; i++) {
+		len = strlen(fill_data.fills[i]);
+		if (len)
+			// Remove the last comma
+			fill_data.fills[i][len - 1] = '\0';
+		strcat(fill_data_buffer, "\"");
+		strcat(fill_data_buffer, tickers[i]);
+		strcat(fill_data_buffer, "\":[");
+		strcat(fill_data_buffer, fill_data.fills[i]);
+		strcat(fill_data_buffer, "]");
+		if (i != NUM_TICKERS - 1)
+			strcat(fill_data_buffer, ",");
+		fill_data.fills[i][0] = '\0';
+	}
+	strcat(fill_data_buffer, "}");
+	sse_server_queue_data(service->server, fill_data_buffer);
+	fill_data.fill_count = 0;
+}
+
+/*
+void *fill_data_dispatcher(void *arg) {
+	st_trade_service_t *service = (st_trade_service_t*)arg;
+	
+	while (1) {
+		thread_check_exit_flag("Simulated order worker");
+		sleep(FILL_DISPATCH_INTERVAL);
+	}
+}
+*/
 //rand_int = (rand() % 10) + 1; //1 and 10 inclusive
 
 int r_between(int min, int max) {

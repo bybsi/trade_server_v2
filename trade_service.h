@@ -30,7 +30,7 @@ enum ticker {
 	FORIS4,
 	SPARK,
 	ZILBIAN,
-	TICKER_COUNT
+	NUM_TICKERS
 };
 
 // Order book structure for a single ticker
@@ -54,15 +54,15 @@ typedef struct st_trade_service_t {
 	// or the order they were placed.
 	// rbt_node_t -> dll_node_t
 	//st_order_book_t *order_books;
-	st_order_book_t order_books[TICKER_COUNT];
+	st_order_book_t order_books[NUM_TICKERS];
 	// Quick access to cancel and delete orders
 	// Keys are the order id and data is a dll_node_t
 	// that contains the order as it's data.
 	// rbt_node_t -> dll_node_t -> ORDER
 	hashtable_t *ht_orders;
 
-	FILE *price_sources[TICKER_COUNT];
-	st_price_point_t last_prices[TICKER_COUNT];
+	FILE *price_sources[NUM_TICKERS];
+	st_price_point_t last_prices[NUM_TICKERS];
 	pthread_mutex_t last_price_lock;
 
 	pthread_t monitor_thread;
