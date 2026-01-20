@@ -25,7 +25,6 @@ int main() {
 	st_tbl_trade_order_t *to_head, *to;
 	rbt_node_t *root;
 	rbt_node_t *root1;
-	rbt_node_t *node;
 
 	if (!db_init())
 		exit(255);
@@ -62,7 +61,8 @@ int main() {
 	free_trade_order(to_head);
 	
 	db_close();
-
+	rbt_destroy(root);
+	rbt_destroy(root1);
 	exit(0);
 }
 

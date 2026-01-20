@@ -44,6 +44,11 @@ int main() {
 	dl_list_remove(dl, dl->head->next->next->next->next);
 	print_list(dl);
 
+	dl_list_destroy(dl);
+	free(data0);
+	free(data1);
+	free(data2);
+	free(data3);
 	return 0;
 }
 

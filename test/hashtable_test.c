@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 	hashtable_t *ht;
 
 	//ht = ht_init(10000, NULL);
-	ht = ht_init(10000, NULL);
+	ht = ht_init(10000, &htfree);
 
 	ht_put(ht, "doubleu", strdup("bob"));
 	printf("Got: %s\n", (char *)ht_get(ht, "doubleu"));
@@ -29,7 +29,8 @@ int main(int argc, char *argv[]) {
 	printf("Got: %s\n", (char *)ht_get(ht, "aaaa"));
 	printf("Got: %s\n", (char *)ht_get(ht, "doubleu"));
 	printf("Removing 111\n");
-	ht_remove(ht, "111");
+	void *data = ht_remove(ht, "111");
+	free(data);
 	printf("Got: %s\n", (char *)ht_get(ht, "111"));
 	printf("Got: %s\n", (char *)ht_get(ht, "aaaa"));
 	printf("Got: %s\n", (char *)ht_get(ht, "doubleu"));
