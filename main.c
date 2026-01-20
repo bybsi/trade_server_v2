@@ -2,12 +2,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "trade_service.h"
 #include "sse_server.h"
 
 #define PORT 6262
-#define DATA_Q_SIZE 10
+#define DATA_Q_SIZE 100
 
 /* TODO
 void handle_signal(int sig) {
@@ -21,6 +22,7 @@ void handle_signal(int sig) {
 int main(void) {
 	st_sse_server_t *server;
 	st_trade_service_t *service;
+	pthread_t server_tid;
 	// TODO
 	//signal(SIGINT, handle_signal);
 	//signal(SIGTERM, handle_signal);
