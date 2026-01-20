@@ -22,7 +22,7 @@ typedef struct client_data_node {
 
 typedef struct client_list_manager {
 	pthread_mutex_t lock;
-	// +1 so we always end with a 0
+	// +1 so it always ends with a 0
 	int client_fd_arr[NUM_CLIENTS_PER_LIST + 1];
 	unsigned short last_client_insert_idx;
 	unsigned short last_data_read_idx;
@@ -38,7 +38,7 @@ typedef struct client_list_manager {
 typedef struct client_writer {
 	st_client_list_manager_t clm[NUM_CLIENT_LISTS];
 	unsigned short round_robin_idx;
-	pthread_mutex_t dq_lock;
+	unsigned int msg_count;
 	st_client_data_node_t *data_queue;
 	unsigned short data_queue_size;
 	unsigned short last_data_write_idx;

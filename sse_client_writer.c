@@ -16,6 +16,9 @@
 /* neat */
 static int verbose = 1;
 
+/* data queue lock */
+pthread_mutex_t dq_lock;
+
 /*
 Chooses an available client write thread.
 
@@ -65,48 +68,52 @@ void *client_write_thread(void *clm) {
 
 		sleep(2);
 		
+		pthread_mutex_lock(&clm_ptr->lock);
 		if (clm_ptr->stop) {
+			pthread_mutex_unlock(&clm_ptr->lock);
 			logger_write(logger, "Got stop flag.");
 			logger_close(logger);
 			return 0;
 		}
+		pthread_mutex_unlock(&clm_ptr->lock);
 
-		if (clm_ptr->last_data_read_idx == clm_ptr->data_queue_size)
-			clm_ptr->last_data_read_idx = 0;
+		while (1) {
+			if (clm_ptr->last_data_read_idx == clm_ptr->data_queue_size)
+				clm_ptr->last_data_read_idx = 0;
 
-		//pthread_mutex_lock(&clm->lock);
-		// TODO this should be a while loop to send all recent data.
-		// but it's not important right now because of how the
-		// timing currently works.
-		// Send the most recent record if it hasn't been sent.
-		// This also handles cases where thre is no data
-		// at the current index because the timestamp(id) is still 0.
-		if (last_data_id >= data[clm_ptr->last_data_read_idx].id)
-			continue;
-		last_data_id = data[clm_ptr->last_data_read_idx].id;
-
-		memcpy(send_buffer, data[clm_ptr->last_data_read_idx].data, MAX_DATA_SEND_LEN);
-		send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
-
-		if (verbose)
-			printf("Sending(%d), %s", clm_ptr->id, send_buffer);
-
-		// 0  indicates the end of the list.
-		// -1 indicates a lost connection.
-		// TODO: linked list to drop bad connections.
-		for (i = 0; clients[i] != 0; i++) {
-			if (clients[i] == -1)
-				continue;
-
-			if (send_sse_event(clients[i], send_buffer) < 0) {
-				logger_write(logger, "Could not send SSE event to client %d: %s", clients[i], send_buffer);
-				// close(clients[i]); // causes crash...
-				clients[i] = -1;
+			// Send new messages to the clients.
+			// This also handles cases where there is no data
+			// at the current index because the data 
+			// id is 0 in that case.
+			pthread_mutex_lock(&dq_lock);
+			if (last_data_id >= data[clm_ptr->last_data_read_idx].id) {
+				pthread_mutex_unlock(&dq_lock);
+				break;
 			}
-		}
-		//pthread_mutex_unlock(&clm->lock);
+			last_data_id = data[clm_ptr->last_data_read_idx].id;
+			memcpy(send_buffer, data[clm_ptr->last_data_read_idx].data, MAX_DATA_SEND_LEN);
+			pthread_mutex_unlock(&dq_lock);
 
-		clm_ptr->last_data_read_idx++;
+			send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
+			if (verbose)
+				printf("Sending(%d), %s", clm_ptr->id, send_buffer);
+
+			// 0  indicates the end of the list.
+			// -1 indicates a lost connection.
+			// TODO: linked list to drop bad connections.
+			for (i = 0; clients[i] != 0; i++) {
+				if (clients[i] == -1)
+					continue;
+
+				if (send_sse_event(clients[i], send_buffer) < 0) {
+					logger_write(logger, "Could not send SSE event to client %d: %s", clients[i], send_buffer);
+					// close(clients[i]); // causes crash...
+					clients[i] = -1;
+				}
+			}
+
+			clm_ptr->last_data_read_idx++;
+		}
 	}
 }
 
@@ -127,8 +134,9 @@ st_client_writer_t * client_writer_init(unsigned short data_queue_size) {
 	client_writer->round_robin_idx = 0;
 	client_writer->last_data_write_idx = 0;
 	client_writer->data_queue_size = data_queue_size;
+	client_writer->msg_count = 0;
 
-	if (pthread_mutex_init(&client_writer->dq_lock, NULL) != 0) {
+	if (pthread_mutex_init(&dq_lock, NULL) != 0) {
 		free(client_writer);
 		return NULL;
 	}
@@ -154,7 +162,6 @@ st_client_writer_t * client_writer_init(unsigned short data_queue_size) {
 		client_writer->clm[i].data_queue = client_writer->data_queue;
 		client_writer->clm[i].data_queue_size = data_queue_size;
 	
-		//TODO REMOVE ? maybe.?
 		client_writer->clm[i].id = i+1;
 	}
 	
@@ -173,7 +180,9 @@ Params
 void client_writer_start(st_client_writer_t *client_writer) {
 	unsigned short i;
 	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
-		pthread_create(&client_writer->clm[i].thread_id, NULL, client_write_thread, &client_writer->clm[i]);
+		pthread_create(
+			&client_writer->clm[i].thread_id, NULL, 
+			client_write_thread, &client_writer->clm[i]);
 	}
 }
 
@@ -185,15 +194,14 @@ Params
 */
 void client_writer_stop(st_client_writer_t *client_writer) {
 	unsigned short i;
-	int *status;
-	for (i = 0; i < NUM_CLIENT_LISTS; i++) {		
-//		pthread_mutex_lock(&client_writer->clm[i].lock);
+	for (i = 0; i < NUM_CLIENT_LISTS; i++) {
+		pthread_mutex_lock(&client_writer->clm[i].lock);
 		client_writer->clm[i].stop = 1;
-//		pthread_mutex_unlock(&client_writer->clm[i].lock);
+		pthread_mutex_unlock(&client_writer->clm[i].lock);
 	}
-	
+	logger_write(client_writer->logger, "Joining client writers\n");
 	for (i = 0; i < NUM_CLIENT_LISTS; i++)
-		pthread_join(client_writer->clm[i].thread_id, (void **) &status);
+		pthread_join(client_writer->clm[i].thread_id, NULL);
 	
 	logger_write(client_writer->logger, "Stopped client writer.");
 	logger_close(client_writer->logger);
@@ -232,11 +240,9 @@ void client_writer_add_client(st_client_writer_t *client_writer, int client_fd) 
 		return;
 	}
 
-	//pthread_mutex_lock(&clm->lock);
 	if (verbose)
 		printf("\tAdding client(%d) to writer(%d)\n", client_fd, clm->id);
 	clm->client_fd_arr[clm->last_client_insert_idx++] = client_fd;
-	//pthread_mutex_unlock(&clm->lock);
 }
 
 /*
@@ -250,18 +256,19 @@ Params
 void client_writer_queue_data(st_client_writer_t *client_writer, char *data) {
 	st_client_data_node_t *data_node;
 
-	pthread_mutex_lock(&client_writer->dq_lock);
-	
+	pthread_mutex_lock(&dq_lock);
 	if (client_writer->last_data_write_idx == client_writer->data_queue_size)
 		client_writer->last_data_write_idx = 0;
 	if (verbose)
 		printf("adding data to %d, %s", client_writer->last_data_write_idx, data);
 	data_node = &client_writer->data_queue[client_writer->last_data_write_idx++];
-	data_node->id = time(NULL);
+	// This will allow us to see batched messages in the log files. e.g.
+	// the first 10 digits of the ID will match.
+	data_node->id = time(NULL) + client_writer->msg_count;
 	memcpy(data_node->data, data, MAX_DATA_SEND_LEN);
 	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';
 	
-	pthread_mutex_unlock(&client_writer->dq_lock);
+	pthread_mutex_unlock(&dq_lock);
 }
 
 void client_writer_destroy(st_client_writer_t *client_writer) {
