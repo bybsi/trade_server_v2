@@ -1,6 +1,6 @@
 CCREL = gcc -O3
 CCDBG = gcc -g3 -O0
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -std=c99 
 LDFLAGS = 
 CC = $(CCDBG)
 #CC = $(CCREL)
@@ -15,16 +15,16 @@ LIBDS := data_structures/libds.so
 DSLINK := -Wl,-rpath='.' -L./data_structures -I./data_structures
 
 dbtest: $(DB) dbtest.c
-	$(CC) $(LDFLAGS) $(DBI) $(DB) dbtest.c  -o dbtest $(WITH_MYSQL)
+	$(CC) $(LDFLAGS) $(DBI) $(DB) dbtest.c  -o dbtest $(WITH_MYSQL) -I.
 
 cwtest: sse_client_writer.c test/sse_client_writer_test.c logger.c
-	$(CC) $(LDFLAGS) sse_client_writer.c test/sse_client_writer_test.c logger.c -o cwtest
+	$(CC) $(LDFLAGS) sse_client_writer.c test/sse_client_writer_test.c logger.c -o cwtest -I.
 
 servertest: sse_client_writer.c logger.c sse_server.c test/sse_server_test.c
-	$(CC) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c test/sse_server_test.c -o servertest
+	$(CC) $(LDFLAGS) sse_client_writer.c logger.c sse_server.c test/sse_server_test.c -o servertest -I.
 
 redistest: test/redis_test.c
-	$(CC) $(LDFLAGS) test/redis_test.c $(WITH_REDIS) -o redistest
+	$(CC) $(LDFLAGS) test/redis_test.c $(WITH_REDIS) -o redistest -I.
 
 servicetest: $(DB) logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \
@@ -36,6 +36,7 @@ servicetest: $(DB) logger.c currency.c \
 	$(WITH_MYSQL) \
 	$(WITH_REDIS) \
 	$(WITH_DS) -I.
+	cp $(LIBDS) .
 
 tradeservice: $(DB) logger.c currency.c \
 		redis.c sse_client_writer.c sse_server.c \
@@ -46,7 +47,8 @@ tradeservice: $(DB) logger.c currency.c \
 	-o tradeservice \
 	$(WITH_MYSQL) \
 	$(WITH_REDIS) \
-	$(WITH_DS)
+	$(WITH_DS) -I.
+	cp $(LIBDS) .
 
 test: dltest httest rbtest redistest servertest servicetest
 
@@ -56,9 +58,11 @@ rbtest: test/rb_tree_test.c $(DB) $(LIBDS)
 
 dltest: test/dl_list_test.c $(LIBDS)
 	$(CC) $(LDFLAGS) $(DSLINK) test/dl_list_test.c -o dltest $(WITH_DS)
+	cp $(LIBDS) .
 
 httest: test/hashtable_test.c $(LIBDS)
 	$(CC) $(LDFLAGS) $(DSLINK) test/hashtable_test.c -o httest $(WITH_DS)
+	cp $(LIBDS) .
 
 clean:
 	rm -f dbtest dltest cwtest servertest httest redistest rbtest servicetest tradeservice
