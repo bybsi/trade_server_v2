@@ -1,3 +1,4 @@
+// TODO free datastructures.
 #include <errno.h>
 #include <sys/stat.h>
 #include <pthread.h>
@@ -576,7 +577,6 @@ void trade_service_destroy(st_trade_service_t *service) {
 
 	if (service->logger) {
 		logger_close(service->logger);
-		free(service->logger);
 	}
 	if (service->redis)
 		redisFree(service->redis);
