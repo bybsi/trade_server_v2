@@ -1,5 +1,5 @@
-#ifndef _dl_list_t_H_
-#define _dl_list_t_H_
+#ifndef _DL_LIST_H_
+#define _DL_LIST_H_
 
 typedef struct dll_node {
 	void *data;
@@ -20,5 +20,6 @@ dl_list_t * dl_list_init(void (*print_func) (void *));
 dll_node_t *dl_list_new_node(void *data);
 void dl_list_insert(dl_list_t *dl_list, void *data, void (*data_callback)(void *data_node, void *dll_node));
 void dl_list_remove(dl_list_t *dl_list, dll_node_t *node);
+void dl_list_destroy(dl_list_t *dl_list);
 
-#endif // _dl_list_t_H__
+#endif // _DL_LIST_H_

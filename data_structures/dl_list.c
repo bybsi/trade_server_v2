@@ -89,4 +89,15 @@ void dl_list_remove(dl_list_t *dl_list, dll_node_t *node) {
 	free(node);
 }
 
+void dl_list_destroy(dl_list_t *dl_list) {
+	dll_node_t *cur, *next;
+	
+	cur = dl_list->head;
+	while (cur) {
+		next = cur->next;
+		free(cur);
+		cur = next;
+	}
+	free(dl_list);
+}
 

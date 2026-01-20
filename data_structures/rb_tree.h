@@ -20,5 +20,6 @@ void rbt_inorder(rbt_node_t *node);
 void rbt_insert(rbt_node_t **root, unsigned long long key, void *data, void (*data_callback)(void *data_node, void *list_node));
 rbt_node_t * rbt_init();
 void rbt_set_test_print_func(void (*ptr) (void *));
+void rbt_destroy(rbt_node_t *node);
 
 #endif // _RB_TREE_H_

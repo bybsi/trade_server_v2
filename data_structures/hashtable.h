@@ -1,5 +1,5 @@
-#ifndef _hashtable_t_H_
-#define _hashtable_t_H_
+#ifndef _HASHTABLE_H_
+#define _HASHTABLE_H_
 
 #include <stddef.h>
 #include <pthread.h>
@@ -30,4 +30,4 @@ ht_entry_t *ht_put(hashtable_t *ht, const char* key, void* value);
 void* ht_get(hashtable_t *ht, const char* key);
 void* ht_remove(hashtable_t *ht, const char* key);
 
-#endif // _hashtable_t_H__
+#endif // _HASHTABLE_H_

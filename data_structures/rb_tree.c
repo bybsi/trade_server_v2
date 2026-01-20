@@ -200,6 +200,17 @@ void rbt_visit_nodes_in_range(rbt_node_t *node, unsigned long long low_key, unsi
 	if (node->key < high_key)
 		rbt_visit_nodes_in_range(node->right, low_key, high_key, visitor);
 }
+
+void rbt_destroy(rbt_node_t *node) {
+	if (!node || node == NIL)
+		return;
+	if (node->orders_list)
+		dl_list_destroy(node->orders_list);
+	rbt_destroy(node->left);
+	rbt_destroy(node->right);
+	free(node);
+}
+
 /*
 def morris_inorder(root):
 	current = root
