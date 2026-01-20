@@ -31,7 +31,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	sleep(7);
+	fprintf(stderr, "stopping...\n");
 	client_writer_stop(cw);
+	fprintf(stderr, "destroying...\n");
 	client_writer_destroy(cw);
 	exit(0);
 } 
