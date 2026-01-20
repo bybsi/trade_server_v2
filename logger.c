@@ -87,5 +87,6 @@ void logger_close(st_logger_t *logger) {
 		logger->fh = NULL;
 	}
 	pthread_mutex_unlock(&logger->lock);
+	free(logger);
 }
 
