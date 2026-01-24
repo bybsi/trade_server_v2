@@ -17,7 +17,6 @@
 #include "hiredis/hiredis.h"
 #include "logger.h"
 
-#define MAX_TICKERS 10
 #define MAX_ORDERS 25000
 #define TICKER_LENGTH 10
 #define DATA_DIR "/var/data/trading"
@@ -80,9 +79,9 @@ typedef struct st_trade_service_t {
 } st_trade_service_t;
 
 st_trade_service_t *trade_service_init(st_sse_server_t *server);
-void trade_service_destroy(st_trade_service_t *service);
-int trade_service_start(st_trade_service_t *service);
-void trade_service_stop(st_trade_service_t *service);
+void trade_service_destroy();
+int trade_service_start();
+void trade_service_stop();
 
 /* Thread workers */
 void *market_monitor(void *arg);

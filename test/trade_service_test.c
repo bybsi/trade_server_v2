@@ -23,13 +23,13 @@ int main() {
 
 	service = trade_service_init(server);
 
-	if (!trade_service_start(service)) {
+	if (!trade_service_start()) {
 		fprintf(stderr, "no start\n");
 	}
 
-	sleep(10);
-	trade_service_stop(service);
-	trade_service_destroy(service);
+	sleep(120);
+	trade_service_stop();
+	trade_service_destroy();
 
 	return 0;
 }

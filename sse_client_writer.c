@@ -87,6 +87,7 @@ void *client_write_thread(void *clm) {
 			// id is 0 in that case.
 			pthread_mutex_lock(&dq_lock);
 			if (last_data_id >= data[clm_ptr->last_data_read_idx].id) {
+				logger_write(logger, "skipping %llu, %llu\n", last_data_id, data[clm_ptr->last_data_read_idx].id);
 				pthread_mutex_unlock(&dq_lock);
 				break;
 			}
@@ -95,8 +96,10 @@ void *client_write_thread(void *clm) {
 			pthread_mutex_unlock(&dq_lock);
 
 			send_buffer[MAX_DATA_SEND_LEN - 1] = '\0';
-			if (verbose)
+			if (verbose) {
+				logger_write(logger, "sending: %s\n", send_buffer);
 				printf("Sending(%d), %s", clm_ptr->id, send_buffer);
+			}
 
 			// 0  indicates the end of the list.
 			// -1 indicates a lost connection.
@@ -263,8 +266,10 @@ void client_writer_queue_data(st_client_writer_t *client_writer, char *data) {
 		printf("adding data to %d, %s", client_writer->last_data_write_idx, data);
 	data_node = &client_writer->data_queue[client_writer->last_data_write_idx++];
 	// This will allow us to see batched messages in the log files. e.g.
-	// the first 10 digits of the ID will match.
-	data_node->id = time(NULL) + client_writer->msg_count;
+	// the first 10 digits of the ID will match. (after right shifting).
+	//data_node->id = (time(NULL) << 30) + client_writer->msg_count;
+	data_node->id = time(NULL) * 10000000 + client_writer->msg_count;
+	client_writer->msg_count++;
 	memcpy(data_node->data, data, MAX_DATA_SEND_LEN);
 	data_node->data[MAX_DATA_SEND_LEN - 1] = '\0';
 	

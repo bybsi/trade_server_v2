@@ -17,8 +17,8 @@
 #include "sse_server.h"
 #include "sse_client_writer.h"
 
-#define MAX_EVENTS 10
-#define BUFFER_SIZE 1024
+#define MAX_EVENTS 100
+
 
 static int verbose = 0;
 
@@ -218,7 +218,7 @@ void *server_thread (void *server_vp) {
 				// Handle client data
 				// Should never get here after headers are received since
 				// this is a write only server (SSE).
-				char buffer[BUFFER_SIZE];
+				char buffer[1024];
 				ssize_t count = read(events[i].data.fd, buffer, sizeof(buffer));
 				if (count <= 0) {
 					if (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {

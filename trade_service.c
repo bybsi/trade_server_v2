@@ -20,11 +20,12 @@
 #define REDIS_HOST "127.0.0.1"
 #define REDIS_PORT 6379
 
-// Max number of orders to initially load from the database.
-#define STR_MAX_ORDERS "5000"
+#define MAX_LOAD_ORDERS 5000
 // Closest prime to 25000 for hashtable distribution.
 #define HT_ORDER_CAPACITY 25013
 #define BACKLOAD_WEEKS 12
+
+st_trade_service_t *service;
 
 // Pointer to the logger instance for use inside of
 // certain callback functions that don't have access to the
@@ -60,12 +61,12 @@ void thread_check_exit_flag(char *thread_name) {
 /* 
 For batching fill data and sending it to the event stream. 
 Data is dispatched every FILL_DISPATCH_INTERVAL seconds or 
-when FILL_CAPACITY is reached.   
+when MAX_FILL_DATA_SIZE is reached.   
 */
-#define FILL_CAPACITY 10
+#define MAX_FILL_DATA_SIZE 2048
 #define FILL_DISPATCH_INTERVAL 2 // seconds
 struct {
-	char fills[NUM_TICKERS][2048];
+	char fills[NUM_TICKERS][MAX_FILL_DATA_SIZE];
 	unsigned short fill_count;
 } fill_data = { {"","","",""}, 0};
 /*
@@ -76,19 +77,19 @@ struct {
 //pthread_t fill_data_thread;
 //pthread_mutex_t fill_data_lock;
 unsigned short update_fill_data(st_tbl_trade_order_t * order); 
-time_t dispatch_fill_data(st_trade_service_t *service);
+time_t dispatch_fill_data();
 time_t last_fill_dispatch_time;
 //void *fill_data_dispatcher(void *arg);
 /* ------ */
 
-static unsigned short load_orders(st_trade_service_t *service);
-static unsigned short load_orders_all_tickers(st_trade_service_t *service);
+static unsigned short load_orders();
+static unsigned short load_orders_all_tickers();
 static unsigned short load_orders_helper(
 	char side, char *order_by, unsigned short ticker_id, 
 	hashtable_t *ht_orders, rbt_node_t **rbt_orders, 
 	char *last_order_read_time, char *id_prefix);
-static void process_fills(st_trade_service_t *service, 
-	unsigned short ticker, unsigned long long current_price);
+static void process_fills(unsigned short ticker, unsigned long long current_price);
+void process_order_for_clients(st_tbl_trade_order_t *order);
 static unsigned short fill_order(st_tbl_trade_order_t *order);
 void build_simulated_order(unsigned long long price, char *data);
 int r_between(int min, int max);
@@ -127,12 +128,11 @@ Price data files are binary where each price is packed to 5 bytes
 1 byte:  candle flag (OPEN|CLOSE|LOW|HIGH) <-- TODO: needs a rework
 
 Params
-	service: The st_trade_service_t instance.
 
 Returns
 	1 on success, 0 on failure.
 */
-static int load_price_sources(st_trade_service_t *service) {
+static int load_price_sources() {
 	for (size_t i = 0; i < NUM_TICKERS; i++) {
 		char filepath[256];
 		/* /var/data/filename */
@@ -182,12 +182,11 @@ Finishes initializing the trade service after
 trade_service_start has been called.
 
 Params
-	service: The st_trade_service_t instance.
 
 Returns
 	1 on success, 0 on failure
 */
-static int init_service(st_trade_service_t *service) {
+static int init_service() {
 	st_price_point_t pp = {0, 0};
 
 	if (!db_init())
@@ -245,13 +244,12 @@ void ht_node_to_dll_node(void *ht_node, void *dll_node) {
 Loads the orders from the database for all trade tickers.
 
 Params
-	service: The st_trade_service_t instance.
 
 Returns
 	1 on success, 0 on failure
 	
 */
-static unsigned short load_orders_all_tickers(st_trade_service_t *service) {
+static unsigned short load_orders_all_tickers() {
 	unsigned short ticker_idx;
 	unsigned short result;
 	for (ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
@@ -303,11 +301,12 @@ static unsigned short load_orders_helper(
 	snprintf(sql, 1024, 
 "WHERE side='%c' and status='O' and ticker='%s' and created_at >= '%s' "
 "ORDER BY price %s, created_at ASC "
-"LIMIT " STR_MAX_ORDERS, 
+"LIMIT %d", 
 		side,
 		tickers[ticker_id],
 		last_order_read_time,
-		order_by);
+		order_by,
+		MAX_LOAD_ORDERS);
 
 	printf("%s\n", sql);
 	result_head = parse_tbl_trade_order( db_fetch_data_sql(TBL_TRADE_ORDER, sql) );
@@ -362,12 +361,11 @@ Loads buy and sell orders into memory and populates datastructures.
 Updates the last_order_read_time value.
 
 Params
-	service: The st_trade_service_t instance.
 
 Returns
 	1 on success, 0 on failure.
 */
-static unsigned short load_orders(st_trade_service_t *service) {
+static unsigned short load_orders() {
 //	unsigned short result = (load_buy_orders(service) & load_sell_orders(service));
 	unsigned short result = load_orders_all_tickers(service);
 	db_timestamp(service->last_order_read_time, 0);
@@ -419,18 +417,19 @@ static unsigned short fill_order(st_tbl_trade_order_t *order) {
 		return 0;
 	}
 	order->status = 'F';
+	process_order_for_clients(order);
+	return 1;
+}
 	
-	/* TODO move into function) */
+void process_order_for_clients(st_tbl_trade_order_t *order) {
 	if (!update_fill_data(order)) {
 		unsigned short junk;
-		//last_fill_dispatch_time = dispatch_fill_data(service);//TODO service
+		last_fill_dispatch_time = dispatch_fill_data();
 		junk = update_fill_data(order);
-	} else if (time(NULL) > last_fill_dispatch_time + 2) {
+	} else if (time(NULL) > last_fill_dispatch_time + FILL_DISPATCH_INTERVAL) {
 		// Current time is greater than next dispatch time
-		//last_fill_dispatch_time = dispatch_fill_data(service); // TODO service
+		last_fill_dispatch_time = dispatch_fill_data(service);
 	}
-
-	return 1;
 }
 
 /*
@@ -457,8 +456,7 @@ void order_visitor(void *data) {
 		printf("Filling order: %ld\n", order->id);
 		if (fill_order(order)) {
 			// TODO still need to delete item from the hashtable,
-			// need a global pointer, it is a global hashtable afterall..
-			// but it's stored in st_trade_service_t... rework maybe??
+			// service->...
 			tmp_node = current_node->next;
 			printf("Removing order\n");
 			dl_list_remove(order_list, current_node);
@@ -474,13 +472,12 @@ Performs a search based on the current and last ticker price for open orders.
 Those orders are then processed using a visitor callback function (above).
 
 Params
-	service: The st_trade_service_t instance.
 	ticker: The index of const char *tickers to use.
 		generally defined as TICKER_<TICKERNAME>
 		#define TICKER_ANDTHEN 1 (see above)
 	current_price: The current market price of the ticker
 */
-static void process_fills(st_trade_service_t *service, unsigned short ticker, unsigned long long current_price) {
+static void process_fills(unsigned short ticker, unsigned long long current_price) {
 	unsigned long long low_price, high_price;
 
 	pthread_mutex_lock(&service->last_price_lock);
@@ -524,7 +521,8 @@ Returns
 st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 	unsigned short i;
 	
-	st_trade_service_t *service = calloc(1, sizeof(st_trade_service_t));
+	// Allocates static st_trade_service_t *service
+	service = calloc(1, sizeof(st_trade_service_t));
 	if (!service) {
 		EXIT_OOM("service");
 	}
@@ -558,9 +556,8 @@ st_trade_service_t *trade_service_init(st_sse_server_t *server) {
 Deletes the trade service instance.
 
 Params
-	service: The st_trade_service_t instance to delete.
 */
-void trade_service_destroy(st_trade_service_t *service) {
+void trade_service_destroy() {
 	if (!service) 
 		return;
 
@@ -587,12 +584,11 @@ void trade_service_destroy(st_trade_service_t *service) {
 Starts the trade service in a new thread.
 
 Params
-	service: The st_trade_service_t instance.
 
 Returns
 	1 on success, 0 on failure.
 */
-int trade_service_start(st_trade_service_t *service) {
+int trade_service_start() {
 	if (!service) 
 		return 0;
 
@@ -629,11 +625,8 @@ int trade_service_start(st_trade_service_t *service) {
 
 /*
 Stops the trade service.
-
-Params
-	service: The st_trade_service_t instance.
 */
-void trade_service_stop(st_trade_service_t *service) {
+void trade_service_stop() {
 	if (!service) 
 		return;
 
@@ -659,13 +652,10 @@ trade_service_start. It is responsible for:
 	2) Reading new orders into the data structures.
 	3) Filling orders.
 	4) Sending data to the client writer queue for front-end updates.
-Params
-	arg: This will be an st_trade_service_t struct.
 */
 void *market_monitor(void *arg) {
 	
 	unsigned short ticker_idx;
-	st_trade_service_t *service = (st_trade_service_t*)arg;
 	st_price_point_t current_price = {0, 0};
 	char sse_price_data[SSE_PRICE_DATA_LEN];
 	char tmp_str[TMP_PRICE_STR_LEN];
@@ -686,7 +676,7 @@ void *market_monitor(void *arg) {
 				continue;
 			}
 
-			process_fills(service, ticker_idx, current_price.price);
+			process_fills(ticker_idx, current_price.price);
 			/* price data TODO move into function*/
 			pthread_mutex_lock(&service->last_price_lock);
 			service->last_prices[ticker_idx].price = current_price.price;
@@ -711,13 +701,12 @@ void *market_monitor(void *arg) {
 void *simulated_order_worker(void *arg) {
 	unsigned short ticker_idx;
 	char sim_order_data[SIM_ORDER_LEN];
-	st_trade_service_t *service = (st_trade_service_t*)arg;
 	
 	while (1) {
 		thread_check_exit_flag("Simulated order worker");
 		
 		sim_order_data[0] = '\0';
-		strcat(sim_order_data, "event: BU\ndata: ");
+		strcat(sim_order_data, "event: BU\ndata: {");
 		for (ticker_idx = 0; ticker_idx < NUM_TICKERS; ticker_idx++) {
 			/* simulated order data */
 			strcat(sim_order_data, "\"");
@@ -770,7 +759,7 @@ unsigned short update_fill_data(st_tbl_trade_order_t * order) {
 		order->amount,
 		order->price,
 		order->filled_at + 11);
-	if (strlen(fill_str) + strlen(fill_data.fills[ticker_idx]) >= 2048)
+	if (strlen(fill_str) + strlen(fill_data.fills[ticker_idx]) >= MAX_FILL_DATA_SIZE)
 		return 0;
 	
 	strcat(fill_data.fills[ticker_idx], fill_str);
@@ -778,8 +767,8 @@ unsigned short update_fill_data(st_tbl_trade_order_t * order) {
 	return 1;
 }
 
-char fill_data_buffer[2048*4 + 20*NUM_TICKERS];
-time_t dispatch_fill_data(st_trade_service_t *service) {
+char fill_data_buffer[MAX_FILL_DATA_SIZE*4 + 20*NUM_TICKERS];
+time_t dispatch_fill_data() {
 	unsigned short i, len;
 	memcpy(fill_data_buffer, (char[]){'{', '\0'}, 2);
 	for (i = 0; i < NUM_TICKERS; i++) {
@@ -803,7 +792,6 @@ time_t dispatch_fill_data(st_trade_service_t *service) {
 
 /*
 void *fill_data_dispatcher(void *arg) {
-	st_trade_service_t *service = (st_trade_service_t*)arg;
 	
 	while (1) {
 		thread_check_exit_flag("Simulated order worker");
