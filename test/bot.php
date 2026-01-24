@@ -12,7 +12,7 @@ $tickers = ["ANDTHEN", "FORIS4", "SPARK", "ZILBIAN"];
 
 while (1) {
 	foreach ($tickers as $ticker) {
-		$current_price = (float)$redis->get("$ticker-price");
+		$current_price = (float)$redis->get("$ticker-price_v2");
 		$variance = $current_price * 0.02;
 		$amount = rand(1, 25);
 		create_order($ticker, 'B', $amount, $current_price - $variance);
